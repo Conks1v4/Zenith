@@ -166,82 +166,33 @@ function isZenithOwner(interaction) {
 
   const cfg = guildConfig(interaction.guild);
 
-  return (
+  // Proprietário configurado do Zenith
+  if (
     cfg.zenithOwner &&
     interaction.user.id === cfg.zenithOwner
-  );
-}
-
-async function blacklistAndBan(guild, userId, reason = "Blacklist Zenith") {
-
-  const cfg = guildConfig(guild);
-
-  if (!Array.isArray(cfg.blacklist)) {
-    cfg.blacklist = [];
-  }
-
-  if (!cfg.blacklist.includes(userId)) {
-    cfg.blacklist.push(userId);
-    saveDB();
-  }
-
-  try {
-
-    const member =
-      await guild.members.fetch(userId).catch(() => null);
-
-    if (member) {
-
-      if (
-        member.bannable
-      ) {
-
-        await member.ban({
-          reason
-        });
-
-        console.log(
-          `[BLACKLIST] ${userId} banido automaticamente.`
-        );
-
-      } else {
-
-        console.log(
-          `[BLACKLIST] ${userId} está na blacklist, mas não posso bani-lo.`
-        );
-
-      }
-    }
-
-  } catch (error) {
-
-    console.error(
-      "[BLACKLIST BAN ERROR]",
-      error
-    );
-  }
-}
-
-function isProtected(guild, id) {
-
-  const cfg = guildConfig(guild);
-
-  if (
-    cfg.zenithOwner &&
-    id === cfg.zenithOwner
   ) {
     return true;
   }
 
+  // Dono do servidor
   if (
-    guild.ownerId &&
-    id === guild.ownerId
+    interaction.guild.ownerId ===
+    interaction.user.id
   ) {
     return true;
   }
 
-  return Array.isArray(cfg.whitelist) &&
-    cfg.whitelist.includes(id);
+  // Administrador do servidor
+  if (
+    interaction.member &&
+    interaction.member.permissions.has(
+      PermissionFlagsBits.Administrator
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /* =========================================
