@@ -2920,6 +2920,83 @@ client.on(
     }
   }
 );
+/* =========================================
+   ATUALIZAÇÃO AUTOMÁTICA DO /INFO
+========================================= */
+
+client.on(
+  "guildMemberAdd",
+  async member => {
+    await updateServerInfo(member.guild);
+  }
+);
+
+client.on(
+  "guildMemberRemove",
+  async member => {
+    await updateServerInfo(member.guild);
+  }
+);
+
+client.on(
+  "channelCreate",
+  async channel => {
+
+    if (!channel.guild)
+      return;
+
+    await updateServerInfo(
+      channel.guild
+    );
+  }
+);
+
+client.on(
+  "channelDelete",
+  async channel => {
+
+    if (!channel.guild)
+      return;
+
+    await updateServerInfo(
+      channel.guild
+    );
+  }
+);
+
+client.on(
+  "roleCreate",
+  async role => {
+    await updateServerInfo(
+      role.guild
+    );
+  }
+);
+
+client.on(
+  "roleDelete",
+  async role => {
+    await updateServerInfo(
+      role.guild
+    );
+  }
+);
+
+client.on(
+  "guildMemberUpdate",
+  async (oldMember, newMember) => {
+
+    if (
+      oldMember.premiumSinceTimestamp !==
+      newMember.premiumSinceTimestamp
+    ) {
+
+      await updateServerInfo(
+        newMember.guild
+      );
+    }
+  }
+);
 
 /* =========================================
    READY
