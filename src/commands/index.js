@@ -1,6 +1,5 @@
 const {
-  SlashCommandBuilder,
-  PermissionFlagsBits
+  SlashCommandBuilder
 } = require("discord.js");
 
 module.exports = [
@@ -119,5 +118,10 @@ module.exports = [
       o.setName("ativar")
         .setDescription("Ativar lockdown")
         .setRequired(true)
-    )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("info")
+    .setDescription("Mostra informações do servidor")
+
 ].map(command => command.toJSON());
