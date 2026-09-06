@@ -25,6 +25,11 @@ const {
 
 const commands = require("./commands");
 
+console.log(
+  "[ZENITH] Comandos carregados:",
+  commands.map(command => command.name)
+);
+
 const {
   updateServerInfo
 } = require("./events/updateInfo");
