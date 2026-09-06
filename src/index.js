@@ -25,6 +25,10 @@ const {
 
 const commands = require("./commands");
 
+const {
+  updateServerInfo
+} = require("./src/events/updateInfo");
+
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DB_FILE = path.join(DATA_DIR, "database.json");
 
