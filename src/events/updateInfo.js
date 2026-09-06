@@ -1,4 +1,4 @@
-const { load } = require("../database");
+const { load } = require("../database/database");
 
 const {
   createInfoEmbed
