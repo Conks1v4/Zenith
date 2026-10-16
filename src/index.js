@@ -375,7 +375,7 @@ type
 ) {
 
 const key =
-${guild.id}:${userId}:${type};
+`${guild.id}:${userId}:${type}`;
 
 if (!raidMap.has(key))
 raidMap.set(key, []);
