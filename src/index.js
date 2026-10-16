@@ -277,7 +277,7 @@ saveDB();
 
 try {
 await guild.members.ban(userId, {
-reason: Zenith Security: ${reason}
+reason: `Zenith Security: ${reason}`
 });
 } catch {}
 
