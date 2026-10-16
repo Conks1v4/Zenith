@@ -233,27 +233,115 @@ async function sendLog(
   color = 0x5865F2
 ) {
 
-  const cfg = guildConfig(guild);
+  
+const cfg = guildConfig(guild);
 
-  if (!cfg.logs) return;
+/* =========================================
+   SISTEMA DE BOAS-VINDAS
+========================================= */
 
-  const channel = guild.channels.cache.get(cfg.logs);
-
-  if (!channel || !channel.isTextBased())
-    return;
-
-  const embed = new EmbedBuilder()
-    .setTitle(title)
-    .setDescription(description)
-    .setColor(color)
-    .setTimestamp();
-
-  try {
-    await channel.send({
-      embeds: [embed]
+if (interaction.commandName === "welcome") {
+  if (!interaction.memberPermissions?.has(
+    PermissionFlagsBits.Administrator
+  )) {
+    return interaction.reply({
+      content: "❌ Você precisa ser administrador do servidor.",
+      ephemeral: true
     });
-  } catch {}
+  }
+
+  const sub = interaction.options.getSubcommand();
+  const welcome = cfg.welcome;
+
+  if (sub === "configurar") {
+    const channel = interaction.options.getChannel("canal");
+    const message = interaction.options.getString("mensagem");
+
+    welcome.enabled = true;
+    welcome.channelId = channel.id;
+    welcome.message =
+      message || "Esperamos que você se divirta com a gente!";
+
+    saveDB();
+
+    return interaction.reply({
+      content:
+        `✅ Boas-vindas ativadas no canal ${channel}!\n\n` +
+        "Variáveis disponíveis: `{user}`, `{server}` e `{count}`.",
+      ephemeral: true
+    });
+  }
+
+  if (sub === "desativar") {
+    welcome.enabled = false;
+    saveDB();
+
+    return interaction.reply({
+      content: "🔕 Sistema de boas-vindas desativado.",
+      ephemeral: true
+    });
+  }
+
+  if (sub === "testar") {
+    if (!welcome.enabled || !welcome.channelId) {
+      return interaction.reply({
+        content: "❌ Configure primeiro com `/welcome configurar`.",
+        ephemeral: true
+      });
+    }
+
+    const channel = await guild.channels
+      .fetch(welcome.channelId)
+      .catch(() => null);
+
+    if (!channel || !channel.isTextBased()) {
+      return interaction.reply({
+        content: "❌ O canal configurado não existe ou não está acessível.",
+        ephemeral: true
+      });
+    }
+
+    const previewMessage = String(welcome.message)
+      .replaceAll("{user}", `<@${interaction.user.id}>`)
+      .replaceAll("{server}", guild.name)
+      .replaceAll("{count}", String(guild.memberCount));
+
+    const embed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setAuthor({
+        name: "NOVO MEMBRO • ZENITH",
+        iconURL: guild.iconURL({ size: 128 }) || undefined
+      })
+      .setTitle("🎉 Seja bem-vindo(a)!")
+      .setDescription(
+        `${previewMessage}\n\n` +
+        `👤 **Membro:** ${interaction.user}\n` +
+        `📊 **Membro número:** ${guild.memberCount}`
+      )
+      .setThumbnail(
+        interaction.user.displayAvatarURL({ size: 256 })
+      )
+      .setFooter({
+        text: `${guild.name} • Boas-vindas`
+      })
+      .setTimestamp();
+
+    return interaction.reply({
+      content: `Prévia das boas-vindas para ${interaction.user}:`,
+      embeds: [embed],
+      ephemeral: true
+    });
+  }
 }
+
+/* =========================================
+   CONTINUE AQUI COM OS OUTROS COMANDOS
+========================================= */
+
+// Mantenha abaixo o código que já existia,
+// incluindo a verificação isZenithOwner(interaction)
+// e os comandos setup, ticket, security etc.
+
 
 /* =========================================
    PUNIÇÃO
