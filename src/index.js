@@ -282,11 +282,14 @@ reason: `Zenith Security: ${reason}`
 } catch {}
 
 await sendLog(
-guild,
-"🚨 AMEAÇA BLOQUEADA",
-**Usuário:** <@${userId}>\n +
-**ID:** \${userId}`\n+  Motivo: ${reason}\n\n+  ☠️ Blacklist permanente\n+  🔨 Ban aplicado`,
-0xED4245
+  guild,
+  "🚨 AMEAÇA BLOQUEADA",
+  `**Usuário:** <@${userId}>\n` +
+  `**ID:** ${userId}\n` +
+  `**Motivo:** ${reason}\n\n` +
+  `☠️ Blacklist permanente\n` +
+  `🔨 Ban aplicado`,
+  0xED4245
 );
 
 return true;
