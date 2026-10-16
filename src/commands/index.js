@@ -1,5 +1,8 @@
+
 const {
-  SlashCommandBuilder
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  ChannelType
 } = require("discord.js");
 
 module.exports = [
@@ -108,6 +111,7 @@ module.exports = [
     .addChannelOption(o =>
       o.setName("canal")
         .setDescription("Canal que receberá os logs")
+        .addChannelTypes(ChannelType.GuildText)
         .setRequired(true)
     ),
 
@@ -122,6 +126,35 @@ module.exports = [
 
   new SlashCommandBuilder()
     .setName("info")
-    .setDescription("Mostra informações do servidor")
+    .setDescription("Mostra informações do servidor"),
+
+  new SlashCommandBuilder()
+    .setName("welcome")
+    .setDescription("Sistema profissional de boas-vindas")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addSubcommand(s =>
+      s.setName("configurar")
+        .setDescription("Configura o canal e a mensagem")
+        .addChannelOption(o =>
+          o.setName("canal")
+            .setDescription("Canal de boas-vindas")
+            .addChannelTypes(ChannelType.GuildText)
+            .setRequired(true)
+        )
+        .addStringOption(o =>
+          o.setName("mensagem")
+            .setDescription("Use {user}, {server} e {count}")
+            .setMaxLength(1000)
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(s =>
+      s.setName("testar")
+        .setDescription("Testa a mensagem de boas-vindas")
+    )
+    .addSubcommand(s =>
+      s.setName("desativar")
+        .setDescription("Desativa as boas-vindas")
+    )
 
 ].map(command => command.toJSON());
