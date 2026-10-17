@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 
 const fs = require("fs");
@@ -25,15 +24,15 @@ const {
 } = require("discord.js");
 
 const commands = require("./commands");
-const { updateServerInfo } = require("./events/updateInfo");
 
-// ======================================================
-// ZENITH — CONFIGURAÇÃO PRINCIPAL
-// ======================================================
+console.log(
+  "[ZENITH] Comandos carregados:",
+  commands.map(command => command.name)
+);
 
-const PREFIX = process.env.PREFIX || "z!";
-const PORT = Number(process.env.PORT) || 3000;
-const TOKEN = process.env.DISCORD_TOKEN || process.env.TOKEN;
+const {
+  updateServerInfo
+} = require("./events/updateInfo");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DB_FILE = path.join(DATA_DIR, "database.json");
@@ -45,128 +44,176 @@ if (!fs.existsSync(DATA_DIR)) {
 function loadDB() {
   try {
     if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(
-        DB_FILE,
-        JSON.stringify({ guilds: {} }, null, 2),
-        "utf8"
-      );
-    }
-
-    const parsed = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-
-    if (!parsed || typeof parsed !== "object") {
       return { guilds: {} };
     }
 
-    if (!parsed.guilds || typeof parsed.guilds !== "object") {
-      parsed.guilds = {};
+    const data = JSON.parse(
+      fs.readFileSync(DB_FILE, "utf8")
+    );
+
+    if (!data || typeof data !== "object") {
+      return { guilds: {} };
     }
 
-    return parsed;
-  } catch (error) {
-    console.error("[DATABASE] Erro ao carregar banco:", error);
+    if (!data.guilds || typeof data.guilds !== "object") {
+      data.guilds = {};
+    }
+
+    return data;
+
+  } catch {
     return { guilds: {} };
   }
 }
 
 let db = loadDB();
-let saveTimeout = null;
 
 function saveDB() {
-  if (saveTimeout) clearTimeout(saveTimeout);
-
-  saveTimeout = setTimeout(() => {
-    try {
-      const temporaryFile = `${DB_FILE}.tmp`;
-
-      fs.writeFileSync(
-        temporaryFile,
-        JSON.stringify(db, null, 2),
-        "utf8"
-      );
-
-      fs.renameSync(temporaryFile, DB_FILE);
-    } catch (error) {
-      console.error("[DATABASE] Erro ao salvar banco:", error);
-    }
-
-    saveTimeout = null;
-  }, 150);
-
-  if (typeof saveTimeout.unref === "function") {
-    saveTimeout.unref();
-  }
+  fs.writeFileSync(
+    DB_FILE,
+    JSON.stringify(db, null, 2)
+  );
 }
 
-function guildConfig(guildId) {
-  if (!db.guilds[guildId]) {
-    db.guilds[guildId] = {};
+/* =========================================
+   CONFIGURAÇÃO PADRÃO
+========================================= */
+
+function guildConfig(guild) {
+
+  const id = String(guild.id);
+
+  if (!db.guilds[id]) {
+    db.guilds[id] = {};
   }
 
-  const config = db.guilds[guildId];
+  const cfg = db.guilds[id];
 
-  const defaults = {
-    blacklist: [],
-    whitelist: [],
-    feedbacks: [],
-    warns: {},
-    zenithOwner: null,
-    logs: null,
-    feedbackChannel: null,
-    ticketCategory: null,
-    ticketPanelChannel: null,
-    ticketSupportRole: null,
-    antiraid: true,
-    antispam: true,
-    botProtection: true,
-    lockdown: false,
-    ticketPanel: {
-      title: "🎫 Central de Atendimento",
-      description: "Selecione abaixo o tipo de atendimento desejado.",
-      color: "#5865F2",
-      footer: "Zenith • Atendimento",
-      image: null,
-      thumbnail: null
-    }
-  };
+  if (!Array.isArray(cfg.blacklist))
+    cfg.blacklist = [];
 
-  for (const [key, value] of Object.entries(defaults)) {
-    if (config[key] === undefined || config[key] === null) {
-      config[key] = Array.isArray(value)
-        ? []
-        : value && typeof value === "object"
-          ? { ...value }
-          : value;
-    }
+  if (!Array.isArray(cfg.whitelist))
+    cfg.whitelist = [];
+
+  if (!Array.isArray(cfg.feedbacks))
+    cfg.feedbacks = [];
+
+  if (!cfg.warns)
+    cfg.warns = {};
+
+  if (typeof cfg.zenithOwner === "undefined")
+    cfg.zenithOwner = null;
+
+  if (typeof cfg.blacklist === "undefined")
+    cfg.blacklist = [];
+
+  if (typeof cfg.whitelist === "undefined")
+    cfg.whitelist = [];
+
+  if (typeof cfg.logs === "undefined")
+    cfg.logs = null;
+
+  if (typeof cfg.feedbackChannel === "undefined")
+    cfg.feedbackChannel = null;
+
+  if (typeof cfg.ticketCategory === "undefined")
+    cfg.ticketCategory = null;
+
+  if (typeof cfg.ticketPanelChannel === "undefined")
+    cfg.ticketPanelChannel = null;
+
+  if (typeof cfg.antiraid !== "boolean")
+    cfg.antiraid = true;
+
+  if (typeof cfg.antispam !== "boolean")
+    cfg.antispam = true;
+
+  if (typeof cfg.botProtection !== "boolean")
+    cfg.botProtection = true;
+
+  if (typeof cfg.lockdown !== "boolean")
+    cfg.lockdown = false;
+
+  if (!cfg.ticketPanel)
+    cfg.ticketPanel = {};
+
+  if (!cfg.ticketPanel.title)
+    cfg.ticketPanel.title = "🎫 Central de Atendimento";
+
+  if (!cfg.ticketPanel.description)
+    cfg.ticketPanel.description =
+      "Clique no botão abaixo para abrir um atendimento.";
+
+  if (!cfg.ticketPanel.color)
+    cfg.ticketPanel.color = "#5865F2";
+
+  if (!cfg.ticketPanel.footer)
+    cfg.ticketPanel.footer = "Zenith • Atendimento";
+
+  if (typeof cfg.ticketPanel.image === "undefined")
+    cfg.ticketPanel.image = null;
+
+  if (typeof cfg.ticketPanel.thumbnail === "undefined")
+    cfg.ticketPanel.thumbnail = null;
+
+  if (!Array.isArray(cfg.whitelist)) {
+    cfg.whitelist = [];
   }
 
-  if (!Array.isArray(config.blacklist)) config.blacklist = [];
-  if (!Array.isArray(config.whitelist)) config.whitelist = [];
-  if (!Array.isArray(config.feedbacks)) config.feedbacks = [];
+  saveDB();
 
-  if (!config.warns || typeof config.warns !== "object") {
-    config.warns = {};
-  }
-
-  config.ticketPanel = {
-    ...defaults.ticketPanel,
-    ...(config.ticketPanel || {})
-  };
-
-  return config;
+  return cfg;
 }
 
-// ======================================================
-// CLIENT DISCORD
-// ======================================================
+/* =========================================
+   DONO DO ZENITH
+========================================= */
+
+function isZenithOwner(interaction) {
+
+  if (!interaction.guild) return false;
+
+  const cfg = guildConfig(interaction.guild);
+
+  // Proprietário configurado do Zenith
+  if (
+    cfg.zenithOwner &&
+    interaction.user.id === cfg.zenithOwner
+  ) {
+    return true;
+  }
+
+  // Dono do servidor
+  if (
+    interaction.guild.ownerId ===
+    interaction.user.id
+  ) {
+    return true;
+  }
+
+  // Administrador do servidor
+  if (
+    interaction.member &&
+    interaction.member.permissions.has(
+      PermissionFlagsBits.Administrator
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/* =========================================
+   CLIENT
+========================================= */
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildModeration
+    GatewayIntentBits.MessageContent
   ],
   partials: [
     Partials.Channel,
@@ -175,2304 +222,2972 @@ const client = new Client({
   ]
 });
 
-client.commands = new Map();
+/* =========================================
+   LOGS
+========================================= */
 
-if (Array.isArray(commands)) {
-  for (const command of commands) {
-    if (command && command.data && command.execute) {
-      client.commands.set(command.data.name, command);
-    }
-  }
-} else if (commands && typeof commands === "object") {
-  const commandList = Array.isArray(commands.commands)
-    ? commands.commands
-    : Object.values(commands);
+async function sendLog(
+  guild,
+  title,
+  description,
+  color = 0x5865F2
+) {
 
-  for (const command of commandList) {
-    if (command && command.data && command.execute) {
-      client.commands.set(command.data.name, command);
-    }
-  }
-}
+  const cfg = guildConfig(guild);
 
-// ======================================================
-// PERMISSÕES E PROTEÇÃO
-// ======================================================
+  if (!cfg.logs) return;
 
-function isZenithOwner(interactionOrGuild, userId) {
-  const guild = interactionOrGuild?.guild || interactionOrGuild;
-  const id = userId || interactionOrGuild?.user?.id;
+  const channel = guild.channels.cache.get(cfg.logs);
 
-  if (!guild || !id) return false;
+  if (!channel || !channel.isTextBased())
+    return;
 
-  const config = guildConfig(guild.id);
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(description)
+    .setColor(color)
+    .setTimestamp();
 
-  if (config.zenithOwner && config.zenithOwner === id) {
-    return true;
-  }
-
-  if (guild.ownerId === id) return true;
-
-  const member = interactionOrGuild?.member;
-
-  if (
-    member &&
-    member.permissions &&
-    member.permissions.has(PermissionFlagsBits.Administrator)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function isProtected(guild, userId) {
-  if (!guild || !userId) return true;
-
-  const config = guildConfig(guild.id);
-
-  if (guild.ownerId === userId) return true;
-  if (config.zenithOwner === userId) return true;
-
-  if (
-    config.whitelist.some(
-      entry => String(entry) === String(userId) ||
-        String(entry?.id) === String(userId)
-    )
-  ) {
-    return true;
-  }
-
-  const member = guild.members.cache.get(userId);
-
-  if (
-    member &&
-    member.permissions.has(PermissionFlagsBits.Administrator)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-// ======================================================
-// LOGS
-// ======================================================
-
-async function sendLog(guild, title, description, color = "#5865F2") {
   try {
-    if (!guild) return;
-
-    const config = guildConfig(guild.id);
-    if (!config.logs) return;
-
-    const channel =
-      guild.channels.cache.get(config.logs) ||
-      await guild.channels.fetch(config.logs).catch(() => null);
-
-    if (!channel || !channel.isTextBased()) return;
-
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(String(title).slice(0, 256))
-      .setDescription(String(description).slice(0, 4000))
-      .setTimestamp()
-      .setFooter({ text: "Zenith • Sistema de Logs" });
-
-    await channel.send({ embeds: [embed] }).catch(error => {
-      console.error("[LOGS] Não foi possível enviar log:", error.message);
+    await channel.send({
+      embeds: [embed]
     });
-  } catch (error) {
-    console.error("[LOGS] Erro:", error);
-  }
+  } catch {}
 }
 
-// ======================================================
-// PUNIÇÃO DE USUÁRIOS MALICIOSOS
-// ======================================================
+/* =========================================
+   PUNIÇÃO
+========================================= */
 
-async function punish(guild, userId, reason = "Atividade suspeita") {
+async function punish(
+  guild,
+  userId,
+  reason
+) {
+
+  const cfg = guildConfig(guild);
+
+  if (isProtected(guild, userId))
+    return false;
+
+  if (!cfg.blacklist.includes(userId)) {
+    cfg.blacklist.push(userId);
+    saveDB();
+  }
+
   try {
-    if (!guild || !userId) return false;
-    if (isProtected(guild, userId)) return false;
+    await guild.members.ban(userId, {
+      reason: `Zenith Security: ${reason}`
+    });
+  } catch {}
 
-    const config = guildConfig(guild.id);
+  await sendLog(
+    guild,
+    "🚨 AMEAÇA BLOQUEADA",
+    `**Usuário:** <@${userId}>\n` +
+    `**ID:** \`${userId}\`\n` +
+    `**Motivo:** ${reason}\n\n` +
+    `☠️ Blacklist permanente\n` +
+    `🔨 Ban aplicado`,
+    0xED4245
+  );
+
+  return true;
+}
+
+/* =========================================
+   ANTI-SPAM
+========================================= */
+
+const spamMap = new Map();
+
+client.on(
+  "messageCreate",
+  async message => {
+
+    if (!message.guild || message.author.bot)
+      return;
+
+    const cfg = guildConfig(message.guild);
+
+    if (!cfg.antispam)
+      return;
 
     if (
-      !config.blacklist.some(
-        entry => String(entry) === String(userId) ||
-          String(entry?.id) === String(userId)
+      isProtected(
+        message.guild,
+        message.author.id
       )
+    ) return;
+
+    const key =
+      `${message.guild.id}:${message.author.id}`;
+
+    if (!spamMap.has(key))
+      spamMap.set(key, []);
+
+    const arr = spamMap.get(key);
+    const now = Date.now();
+
+    arr.push(now);
+
+    while (
+      arr.length &&
+      now - arr[0] > 5000
     ) {
-      config.blacklist.push({
-        id: userId,
-        reason,
-        at: Date.now()
-      });
-
-      saveDB();
+      arr.shift();
     }
 
-    const member = await guild.members.fetch(userId).catch(() => null);
+    if (arr.length >= 10) {
 
-    if (member && member.bannable) {
-      await member.ban({ reason: `Zenith Protection: ${reason}` });
+      spamMap.delete(key);
+
+      try {
+        await message.member.timeout(
+          60 * 1000,
+          "Zenith Anti-Spam"
+        );
+      } catch {}
+
+      await sendLog(
+        message.guild,
+        "🚨 ANTI-SPAM",
+        `**Usuário:** <@${message.author.id}>\n` +
+        `10 mensagens em poucos segundos.\n` +
+        `**Ação:** Timeout de 1 minuto.`,
+        0xFEE75C
+      );
     }
-
-    await sendLog(
-      guild,
-      "🛡️ Ameaça bloqueada",
-      `**Usuário:** <@${userId}> (\`${userId}\`)\n` +
-      `**Motivo:** ${reason}\n` +
-      `**Ação:** usuário adicionado à blacklist.`,
-      "#ED4245"
-    );
-
-    return true;
-  } catch (error) {
-    console.error("[PROTECTION] Erro ao punir usuário:", error);
-    return false;
   }
-}
+);
 
-// ======================================================
-// RESPOSTAS SEGURAS PARA INTERAÇÕES
-// ======================================================
+/* =========================================
+   ANTI-RAID
+========================================= */
 
-async function safeReply(interaction, payload) {
-  try {
-    if (interaction.deferred) {
-      return await interaction.editReply(payload);
-    }
+const raidMap = new Map();
 
-    if (interaction.replied) {
-      return await interaction.followUp(payload);
-    }
+function raidAction(
+  guild,
+  userId,
+  type
+) {
 
-    return await interaction.reply(payload);
-  } catch (error) {
-    if (error.code !== 10062 && error.code !== 40060) {
-      console.error("[INTERACTION] Erro ao responder:", error);
-    }
+  const key =
+    `${guild.id}:${userId}:${type}`;
 
-    return null;
-  }
-}
+  if (!raidMap.has(key))
+    raidMap.set(key, []);
 
-function isTicketChannel(channel) {
-  return Boolean(
-    channel &&
-    channel.type === ChannelType.GuildText &&
-    typeof channel.topic === "string" &&
-    channel.topic.startsWith("ZENITH_TICKET:")
-  );
-}
-
-function getTicketOwner(channel) {
-  if (!isTicketChannel(channel)) return null;
-
-  return channel.topic.slice("ZENITH_TICKET:".length) || null;
-}
-
- 
-// ======================================================
-// ANTI-SPAM
-// ======================================================
-
-const spamTracker = new Map();
-const SPAM_WINDOW_MS = 5000;
-const SPAM_MAX_MESSAGES = 10;
-const SPAM_TIMEOUT_MS = 60_000;
-
-client.on("messageCreate", async message => {
-  try {
-    if (!message.guild || message.author.bot) return;
-
-    const config = guildConfig(message.guild.id);
-    if (!config.antispam) return;
-
-    if (isProtected(message.guild, message.author.id)) return;
-
-    const key = `${message.guild.id}:${message.author.id}`;
-    const now = Date.now();
-
-    let record = spamTracker.get(key);
-
-    if (!record || now - record.startedAt > SPAM_WINDOW_MS) {
-      record = {
-        startedAt: now,
-        messages: []
-      };
-    }
-
-    record.messages.push({
-      id: message.id,
-      timestamp: now
-    });
-
-    record.messages = record.messages.filter(
-      item => now - item.timestamp <= SPAM_WINDOW_MS
-    );
-
-    spamTracker.set(key, record);
-
-    if (record.messages.length < SPAM_MAX_MESSAGES) return;
-
-    spamTracker.delete(key);
-
-    const member = await message.guild.members
-      .fetch(message.author.id)
-      .catch(() => null);
-
-    if (!member || !member.moderatable) return;
-
-    await member.timeout(
-      SPAM_TIMEOUT_MS,
-      "Zenith Anti-Spam: excesso de mensagens"
-    );
-
-    await sendLog(
-      message.guild,
-      "🚨 Anti-Spam acionado",
-      `**Usuário:** ${message.author.tag} (\`${message.author.id}\`)\n` +
-      `**Canal:** ${message.channel}\n` +
-      `**Mensagens:** ${SPAM_MAX_MESSAGES} em ${SPAM_WINDOW_MS / 1000}s\n` +
-      `**Punição:** timeout de 60 segundos.`,
-      "#ED4245"
-    );
-
-    await message.channel.send({
-      content: `⚠️ ${message.author}, você foi temporariamente silenciado por spam.`
-    }).then(msg => {
-      setTimeout(() => {
-        msg.delete().catch(() => {});
-      }, 5000);
-    }).catch(() => {});
-
-  } catch (error) {
-    console.error("[ANTI-SPAM] Erro:", error);
-  }
-});
-
-// ======================================================
-// LIMPEZA DOS REGISTROS ANTISPAM
-// ======================================================
-
-setInterval(() => {
+  const arr = raidMap.get(key);
   const now = Date.now();
 
-  for (const [key, record] of spamTracker.entries()) {
-    if (now - record.startedAt > SPAM_WINDOW_MS * 3) {
-      spamTracker.delete(key);
-    }
+  arr.push(now);
+
+  while (
+    arr.length &&
+    now - arr[0] > 10000
+  ) {
+    arr.shift();
   }
-}, 30_000).unref();
 
-// ======================================================
-// ANTI-RAID
-// ======================================================
+  return arr.length;
+}
 
-const raidTracker = new Map();
-const RAID_WINDOW_MS = 10_000;
-const RAID_MAX_ACTIONS = 3;
+async function detectAudit(
+  guild,
+  action,
+  targetId,
+  type
+) {
 
-const monitoredAuditEvents = [
-  AuditLogEvent.ChannelCreate,
-  AuditLogEvent.ChannelDelete,
-  AuditLogEvent.ChannelUpdate,
-  AuditLogEvent.RoleCreate,
-  AuditLogEvent.RoleDelete,
-  AuditLogEvent.RoleUpdate
-];
+  const cfg = guildConfig(guild);
 
-client.on("guildAuditLogEntryCreate", async (entry, guild) => {
+  if (!cfg.antiraid)
+    return;
+
   try {
-    const config = guildConfig(guild.id);
-    if (!config.antiraid) return;
 
-    if (!monitoredAuditEvents.includes(entry.action)) return;
-    if (!entry.executorId) return;
-
-    // Ignora ações realizadas pelo próprio bot.
-    if (entry.executorId === client.user?.id) return;
-
-    if (isProtected(guild, entry.executorId)) return;
-
-    const key = `${guild.id}:${entry.executorId}`;
-    const now = Date.now();
-
-    let record = raidTracker.get(key);
-
-    if (!record || now - record.startedAt > RAID_WINDOW_MS) {
-      record = {
-        startedAt: now,
-        actions: []
-      };
-    }
-
-    record.actions.push({
-      action: entry.action,
-      timestamp: now
-    });
-
-    record.actions = record.actions.filter(
-      item => now - item.timestamp <= RAID_WINDOW_MS
-    );
-
-    raidTracker.set(key, record);
-
-    if (record.actions.length < RAID_MAX_ACTIONS) return;
-
-    raidTracker.delete(key);
-
-    await punish(
-      guild,
-      entry.executorId,
-      "Anti-Raid: múltiplas alterações suspeitas em pouco tempo"
-    );
-
-  } catch (error) {
-    console.error("[ANTI-RAID] Erro:", error);
-  }
-});
-
-// ======================================================
-// LIMPEZA DOS REGISTROS ANTI-RAID
-// ======================================================
-
-setInterval(() => {
-  const now = Date.now();
-
-  for (const [key, record] of raidTracker.entries()) {
-    if (now - record.startedAt > RAID_WINDOW_MS * 3) {
-      raidTracker.delete(key);
-    }
-  }
-}, 30_000).unref();
-
-// ======================================================
-// ANTI-BOT
-// ======================================================
-
-client.on("guildMemberAdd", async member => {
-  try {
-    if (!member.user.bot) return;
-
-    const config = guildConfig(member.guild.id);
-    if (!config.botProtection) return;
-
-    let auditEntry = null;
-
-    try {
-      const audit = await member.guild.fetchAuditLogs({
-        type: AuditLogEvent.BotAdd,
-        limit: 5
+    const logs =
+      await guild.fetchAuditLogs({
+        type: action,
+        limit: 10
       });
 
-      auditEntry = audit.entries.find(entry => {
-        if (!entry.target) return false;
+    const entry =
+      logs.entries.find(e => {
 
-        const targetId =
-          entry.target.id ||
-          entry.targetId;
+        if (!e.executor)
+          return false;
+
+        if (
+          targetId &&
+          e.target?.id !== targetId
+        )
+          return false;
 
         return (
-          targetId === member.id &&
-          Date.now() - entry.createdTimestamp < 15_000
+          Date.now() -
+          e.createdTimestamp <
+          10000
         );
       });
-    } catch (error) {
-      console.error("[ANTI-BOT] Não foi possível consultar auditoria:", error);
+
+    if (!entry)
+      return;
+
+    const userId =
+      entry.executor.id;
+
+    if (isProtected(guild, userId))
+      return;
+
+    const amount =
+      raidAction(
+        guild,
+        userId,
+        type
+      );
+
+    if (amount >= 3) {
+
+      await punish(
+        guild,
+        userId,
+        type
+      );
     }
 
-    const executorId = auditEntry?.executorId;
+  } catch {}
+}
 
-    // Sem identificar quem adicionou o bot, não pune usuários aleatoriamente.
-    if (!executorId) {
-      await sendLog(
-        member.guild,
-        "🤖 Novo bot detectado",
-        `**Bot:** ${member.user.tag} (\`${member.id}\`)\n` +
-        "Não foi possível identificar quem adicionou o bot. Nenhuma punição automática foi aplicada.",
-        "#FEE75C"
+client.on(
+  "channelCreate",
+  channel => {
+
+    if (!channel.guild)
+      return;
+
+    detectAudit(
+      channel.guild,
+      AuditLogEvent.ChannelCreate,
+      channel.id,
+      "criação rápida de canais"
+    );
+  }
+);
+
+client.on(
+  "channelDelete",
+  channel => {
+
+    if (!channel.guild)
+      return;
+
+    detectAudit(
+      channel.guild,
+      AuditLogEvent.ChannelDelete,
+      channel.id,
+      "exclusão rápida de canais"
+    );
+  }
+);
+
+client.on(
+  "channelUpdate",
+  (oldChannel, newChannel) => {
+
+    if (!newChannel.guild)
+      return;
+
+    if (
+      oldChannel.name !==
+      newChannel.name
+    ) {
+
+      detectAudit(
+        newChannel.guild,
+        AuditLogEvent.ChannelUpdate,
+        newChannel.id,
+        "renomeação rápida de canais"
       );
+    }
+  }
+);
+
+client.on(
+  "roleCreate",
+  role => {
+
+    detectAudit(
+      role.guild,
+      AuditLogEvent.RoleCreate,
+      role.id,
+      "criação rápida de cargos"
+    );
+  }
+);
+
+client.on(
+  "roleDelete",
+  role => {
+
+    detectAudit(
+      role.guild,
+      AuditLogEvent.RoleDelete,
+      role.id,
+      "exclusão rápida de cargos"
+    );
+  }
+);
+
+/* =========================================
+   ANTI-BOT
+========================================= */
+
+client.on(
+  "guildMemberAdd",
+  async member => {
+
+    const cfg =
+      guildConfig(member.guild);
+
+    if (
+      cfg.blacklist.includes(member.id)
+    ) {
+
+      try {
+        await member.ban({
+          reason:
+            "Zenith: blacklist permanente"
+        });
+      } catch {}
 
       return;
     }
 
-    if (executorId === client.user?.id) return;
-    if (isProtected(member.guild, executorId)) return;
-
-    const executor = await member.guild.members
-      .fetch(executorId)
-      .catch(() => null);
-
-    if (!executor) return;
-
-    await punish(
-      member.guild,
-      executorId,
-      "Anti-Bot: adição de bot por usuário não autorizado"
-    );
-
-    // Tenta remover o bot recém-adicionado.
-    if (member.bannable) {
-      await member.ban({
-        reason: "Zenith Anti-Bot: bot adicionado por usuário não autorizado"
-      }).catch(error => {
-        console.error("[ANTI-BOT] Não foi possível banir o bot:", error);
-      });
-    }
-
-  } catch (error) {
-    console.error("[ANTI-BOT] Erro:", error);
-  }
-});
-
-// ======================================================
-// EVENTO DE ENTRADA DE MEMBROS — LOG
-// ======================================================
-
-client.on("guildMemberAdd", async member => {
-  try {
-    await sendLog(
-      member.guild,
-      "📥 Membro entrou",
-      `**Usuário:** ${member.user.tag}\n` +
-      `**ID:** \`${member.id}\`\n` +
-      `**Membros no servidor:** ${member.guild.memberCount}`,
-      "#57F287"
-    );
-  } catch (error) {
-    console.error("[MEMBER-ADD] Erro:", error);
-  }
-});
-
-// ======================================================
-// EVENTO DE SAÍDA DE MEMBROS — LOG
-// ======================================================
-
-client.on("guildMemberRemove", async member => {
-  try {
-    await sendLog(
-      member.guild,
-      "📤 Membro saiu",
-      `**Usuário:** ${member.user.tag || member.id}\n` +
-      `**ID:** \`${member.id}\`\n` +
-      `**Membros restantes:** ${member.guild.memberCount}`,
-      "#ED4245"
-    );
-  } catch (error) {
-    console.error("[MEMBER-REMOVE] Erro:", error);
-  }
-});
-
- 
-// ======================================================
-// ZENITH — SISTEMA DE TICKETS
-// PARTE 3/6
-// ======================================================
-
-const TICKET_TYPES = {
-  suporte: {
-    label: "Suporte",
-    emoji: "🛠️",
-    description: "Preciso de ajuda com alguma coisa."
-  },
-  denuncia: {
-    label: "Denúncia",
-    emoji: "🚨",
-    description: "Quero realizar uma denúncia."
-  },
-  duvida: {
-    label: "Dúvida",
-    emoji: "❓",
-    description: "Tenho uma dúvida."
-  },
-  compra: {
-    label: "Compras",
-    emoji: "🛒",
-    description: "Preciso de ajuda com uma compra."
-  }
-};
-
-function createTicketPanelEmbed(guild) {
-  const config = guildConfig(guild.id);
-  const panel = config.ticketPanel;
-
-  const embed = new EmbedBuilder()
-    .setColor(panel.color || "#5865F2")
-    .setTitle(panel.title || "🎫 Central de Atendimento")
-    .setDescription(
-      panel.description ||
-      "Selecione abaixo o tipo de atendimento desejado."
+    if (
+      !member.user.bot ||
+      !cfg.botProtection
     )
-    .setFooter({
-      text: panel.footer || "Zenith • Atendimento"
-    })
-    .setTimestamp();
+      return;
 
-  if (panel.image) embed.setImage(panel.image);
-  if (panel.thumbnail) embed.setThumbnail(panel.thumbnail);
+    setTimeout(
+      async () => {
 
-  return embed;
-}
+        try {
 
-function createTicketPanelComponents() {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId("zenith_ticket_type")
-    .setPlaceholder("Selecione o tipo de atendimento")
-    .setMinValues(1)
-    .setMaxValues(1)
-    .addOptions(
-      Object.entries(TICKET_TYPES).map(([value, type]) => ({
-        label: type.label,
-        value,
-        emoji: type.emoji,
-        description: type.description
-      }))
+          const logs =
+            await member.guild.fetchAuditLogs({
+              type: AuditLogEvent.BotAdd,
+              limit: 10
+            });
+
+          const entry =
+            logs.entries.find(e =>
+              e.target?.id === member.id &&
+              Date.now() -
+              e.createdTimestamp <
+              15000
+            );
+
+          if (
+            !entry ||
+            !entry.executor
+          )
+            return;
+
+          const executor =
+            entry.executor;
+
+          if (
+            isProtected(
+              member.guild,
+              executor.id
+            )
+          )
+            return;
+
+          await punish(
+            member.guild,
+            executor.id,
+            "adicionou um bot não autorizado"
+          );
+
+          try {
+            await member.ban({
+              reason:
+                "Zenith Anti-Bot"
+            });
+          } catch {}
+
+        } catch {}
+      },
+      1500
     );
-
-  return [
-    new ActionRowBuilder().addComponents(menu)
-  ];
-}
-
-async function sendTicketPanel(channel) {
-  if (!channel || !channel.isTextBased()) {
-    throw new Error("O canal do painel não é um canal de texto válido.");
   }
+);
 
-  if (!channel.guild) {
-    throw new Error("Não foi possível identificar o servidor.");
-  }
+/* =========================================
+   EMBED DO PAINEL DE TICKET
+========================================= */
 
-  const message = await channel.send({
-    embeds: [createTicketPanelEmbed(channel.guild)],
-    components: createTicketPanelComponents()
-  });
+function createTicketPanel(cfg) {
 
-  const config = guildConfig(channel.guild.id);
-  config.ticketPanelChannel = channel.id;
-  saveDB();
-
-  return message;
-}
-
-// ======================================================
-// LOCALIZAR TICKET EXISTENTE
-// ======================================================
-
-function findOpenTicket(guild, userId) {
-  return guild.channels.cache.find(channel => {
-    return (
-      isTicketChannel(channel) &&
-      getTicketOwner(channel) === userId
-    );
-  }) || null;
-}
-
-// ======================================================
-// PERMISSÕES DO TICKET
-// ======================================================
-
-function buildTicketPermissions(guild, userId) {
-  const config = guildConfig(guild.id);
-
-  const overwrites = [
-    {
-      id: guild.roles.everyone.id,
-      deny: [PermissionFlagsBits.ViewChannel]
-    },
-    {
-      id: userId,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.AttachFiles,
-        PermissionFlagsBits.EmbedLinks
-      ]
-    }
-  ];
-
-  if (client.user) {
-    overwrites.push({
-      id: client.user.id,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.ManageChannels,
-        PermissionFlagsBits.ManageMessages
-      ]
-    });
-  }
-
-  if (config.ticketSupportRole) {
-    const role = guild.roles.cache.get(config.ticketSupportRole);
-
-    if (role) {
-      overwrites.push({
-        id: role.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.AttachFiles,
-          PermissionFlagsBits.EmbedLinks
-        ]
-      });
-    }
-  }
-
-  return overwrites;
-}
-
-// ======================================================
-// BOTÕES DO CANAL DE TICKET
-// ======================================================
-
-function createTicketActionRows(channelId) {
-  const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("zenith_close_ticket")
-      .setLabel("Fechar ticket")
-      .setEmoji("🔒")
-      .setStyle(ButtonStyle.Danger),
-
-    new ButtonBuilder()
-      .setCustomId("zenith_claim_ticket")
-      .setLabel("Assumir")
-      .setEmoji("🙋")
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("zenith_add_ticket_member")
-      .setLabel("Adicionar membro")
-      .setEmoji("➕")
-      .setStyle(ButtonStyle.Secondary),
-
-    new ButtonBuilder()
-      .setCustomId("zenith_remove_ticket_member")
-      .setLabel("Remover membro")
-      .setEmoji("➖")
-      .setStyle(ButtonStyle.Secondary)
-  );
-
-  return [row1, row2];
-}
-
-// ======================================================
-// CRIAR TICKET
-// ======================================================
-
-async function createTicket(interaction, ticketType) {
-  let responseDeferred = false;
-
-  try {
-    await interaction.deferReply({ ephemeral: true });
-    responseDeferred = true;
-
-    const guild = interaction.guild;
-    const user = interaction.user;
-
-    if (!guild) {
-      return interaction.editReply({
-        content: "❌ Este sistema só funciona dentro de um servidor."
-      });
-    }
-
-    const type = TICKET_TYPES[ticketType];
-
-    if (!type) {
-      return interaction.editReply({
-        content: "❌ Tipo de ticket inválido."
-      });
-    }
-
-    const existing = findOpenTicket(guild, user.id);
-
-    if (existing) {
-      return interaction.editReply({
-        content: `⚠️ Você já possui um ticket aberto: ${existing}`
-      });
-    }
-
-    const config = guildConfig(guild.id);
-
-    let category = null;
-
-    if (config.ticketCategory) {
-      category =
-        guild.channels.cache.get(config.ticketCategory) ||
-        await guild.channels.fetch(config.ticketCategory).catch(() => null);
-    }
-
-    if (category && category.type !== ChannelType.GuildCategory) {
-      category = null;
-    }
-
-    const channelName =
-      `ticket-${type.label.toLowerCase()}-${user.username}`
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9-]/g, "-")
-        .replace(/-+/g, "-")
-        .slice(0, 90);
-
-    const channel = await guild.channels.create({
-      name: channelName || `ticket-${user.id}`,
-      type: ChannelType.GuildText,
-      topic: `ZENITH_TICKET:${user.id}`,
-      parent: category?.id || undefined,
-      permissionOverwrites: buildTicketPermissions(guild, user.id),
-      reason: `Ticket ${type.label} aberto por ${user.tag}`
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor(config.ticketPanel.color || "#5865F2")
-      .setTitle(`${type.emoji} ${type.label}`)
-      .setDescription(
-        `Olá ${user}, seu atendimento foi criado.\n\n` +
-        `**Tipo:** ${type.label}\n` +
-        `**Responsável:** Aguardando atendimento\n\n` +
-        "Descreva seu problema ou sua solicitação com o máximo de detalhes possível.\n\n" +
-        "Nossa equipe responderá assim que possível."
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        cfg.ticketPanel.title
       )
-      .addFields(
-        {
-          name: "👤 Solicitante",
-          value: `${user.tag}\n\`${user.id}\``,
-          inline: true
-        },
-        {
-          name: "📌 Status",
-          value: "Aguardando atendimento",
-          inline: true
-        }
+      .setDescription(
+        cfg.ticketPanel.description
+      )
+      .setColor(
+        cfg.ticketPanel.color ||
+        "#5865F2"
       )
       .setFooter({
-        text: config.ticketPanel.footer || "Zenith • Atendimento"
-      })
-      .setTimestamp();
+        text:
+          cfg.ticketPanel.footer ||
+          "Zenith"
+      });
 
-    await channel.send({
-      content: `${user}`,
-      embeds: [embed],
-      components: createTicketActionRows(channel.id)
-    });
-
-    await sendLog(
-      guild,
-      "🎫 Ticket criado",
-      `**Canal:** ${channel}\n` +
-      `**Solicitante:** ${user.tag} (\`${user.id}\`)\n` +
-      `**Tipo:** ${type.label}`,
-      "#57F287"
+  if (cfg.ticketPanel.image) {
+    embed.setImage(
+      cfg.ticketPanel.image
     );
-
-    return interaction.editReply({
-      content: `✅ Seu ticket foi criado: ${channel}`
-    });
-
-  } catch (error) {
-    console.error("[TICKETS] Erro ao criar ticket:", error);
-
-    if (responseDeferred) {
-      return interaction.editReply({
-        content: "❌ Não foi possível criar seu ticket. Verifique as permissões do bot e tente novamente."
-      }).catch(() => null);
-    }
-
-    return safeReply(interaction, {
-      content: "❌ Ocorreu um erro ao criar o ticket.",
-      ephemeral: true
-    });
-  }
-}
-
-// ======================================================
-// IDENTIFICAR RESPONSÁVEIS PELO ATENDIMENTO
-// ======================================================
-
-function canManageTicket(interaction) {
-  const member = interaction.member;
-
-  if (!member || !interaction.guild) return false;
-
-  if (isZenithOwner(interaction)) return true;
-
-  const config = guildConfig(interaction.guild.id);
-
-  if (
-    config.ticketSupportRole &&
-    member.roles?.cache?.has(config.ticketSupportRole)
-  ) {
-    return true;
   }
 
-  return Boolean(
-    member.permissions?.has(PermissionFlagsBits.Administrator)
-  );
-}
-
-// ======================================================
-// ASSUMIR TICKET
-// ======================================================
-
-async function claimTicket(interaction) {
-  const channel = interaction.channel;
-
-  if (!isTicketChannel(channel)) {
-    return safeReply(interaction, {
-      content: "❌ Este canal não é um ticket do Zenith.",
-      ephemeral: true
-    });
-  }
-
-  if (!canManageTicket(interaction)) {
-    return safeReply(interaction, {
-      content: "❌ Você não tem permissão para assumir tickets.",
-      ephemeral: true
-    });
-  }
-
-  const messages = await channel.messages.fetch({ limit: 30 });
-
-  const ticketMessage = messages.find(message =>
-    message.author.id === client.user.id &&
-    message.embeds.some(embed =>
-      embed.fields?.some(field => field.name === "📌 Status")
-    )
-  );
-
-  if (!ticketMessage) {
-    return safeReply(interaction, {
-      content: "❌ Não encontrei a mensagem principal do ticket.",
-      ephemeral: true
-    });
-  }
-
-  const oldEmbed = ticketMessage.embeds[0];
-  const embed = EmbedBuilder.from(oldEmbed);
-
-  embed.spliceFields(
-    1,
-    1,
-    {
-      name: "📌 Status",
-      value: `Assumido por ${interaction.user}`,
-      inline: true
-    }
-  );
-
-  await ticketMessage.edit({ embeds: [embed] });
-
-  await safeReply(interaction, {
-    content: `✅ Você assumiu o atendimento em ${channel}.`,
-    ephemeral: true
-  });
-
-  await sendLog(
-    interaction.guild,
-    "🙋 Ticket assumido",
-    `**Canal:** ${channel}\n**Responsável:** ${interaction.user}`,
-    "#5865F2"
-  );
-}
-
-// ======================================================
-// SELETORES PARA ADICIONAR E REMOVER MEMBROS
-// ======================================================
-
-function createTicketUserSelect(action) {
-  const menu = new UserSelectMenuBuilder()
-    .setCustomId(
-      action === "add"
-        ? "zenith_ticket_add_user_select"
-        : "zenith_ticket_remove_user_select"
-    )
-    .setPlaceholder(
-      action === "add"
-        ? "Escolha quem poderá ver o ticket"
-        : "Escolha quem perderá acesso ao ticket"
-    )
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  return new ActionRowBuilder().addComponents(menu);
-}
-
-// ======================================================
-// ABRIR SELETOR DE MEMBROS
-// ======================================================
-
-async function openTicketMemberSelector(interaction, action) {
-  if (!isTicketChannel(interaction.channel)) {
-    return safeReply(interaction, {
-      content: "❌ Este canal não é um ticket do Zenith.",
-      ephemeral: true
-    });
-  }
-
-  if (!canManageTicket(interaction)) {
-    return safeReply(interaction, {
-      content: "❌ Somente a equipe autorizada pode gerenciar os membros do ticket.",
-      ephemeral: true
-    });
-  }
-
-  return safeReply(interaction, {
-    content:
-      action === "add"
-        ? "Selecione o membro que deseja adicionar ao ticket."
-        : "Selecione o membro que deseja remover do ticket.",
-    components: [createTicketUserSelect(action)],
-    ephemeral: true
-  });
-}
-
-// ======================================================
-// PROCESSAR SELEÇÃO DE MEMBRO
-// ======================================================
-
-async function processTicketMemberSelect(interaction, action) {
-  try {
-    const channel = interaction.channel;
-    const guild = interaction.guild;
-
-    if (!isTicketChannel(channel) || !guild) {
-      return safeReply(interaction, {
-        content: "❌ Ticket inválido.",
-        ephemeral: true
-      });
-    }
-
-    if (!canManageTicket(interaction)) {
-      return safeReply(interaction, {
-        content: "❌ Você não tem permissão para alterar os membros.",
-        ephemeral: true
-      });
-    }
-
-    const userId = interaction.values?.[0];
-
-    if (!userId) {
-      return safeReply(interaction, {
-        content: "❌ Nenhum membro foi selecionado.",
-        ephemeral: true
-      });
-    }
-
-    const ownerId = getTicketOwner(channel);
-
-    if (userId === guild.ownerId) {
-      return safeReply(interaction, {
-        content: "❌ Não é possível remover o proprietário do servidor.",
-        ephemeral: true
-      });
-    }
-
-    if (action === "remove" && userId === ownerId) {
-      return safeReply(interaction, {
-        content: "❌ Não é possível remover o solicitante original do próprio ticket.",
-        ephemeral: true
-      });
-    }
-
-    const member = await guild.members.fetch(userId).catch(() => null);
-
-    if (!member) {
-      return safeReply(interaction, {
-        content: "❌ Esse usuário não está mais no servidor.",
-        ephemeral: true
-      });
-    }
-
-    if (action === "add") {
-      await channel.permissionOverwrites.edit(member.id, {
-        ViewChannel: true,
-        SendMessages: true,
-        ReadMessageHistory: true,
-        AttachFiles: true,
-        EmbedLinks: true
-      });
-
-      await safeReply(interaction, {
-        content: `✅ ${member.user.tag} agora tem acesso a ${channel}.`,
-        ephemeral: true
-      });
-
-      await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor("#57F287")
-            .setDescription(
-              `➕ ${member} foi adicionado ao ticket por ${interaction.user}.`
-            )
-            .setTimestamp()
-        ]
-      });
-
-    } else {
-      await channel.permissionOverwrites.delete(member.id).catch(async () => {
-        await channel.permissionOverwrites.edit(member.id, {
-          ViewChannel: false,
-          SendMessages: false,
-          ReadMessageHistory: false
-        });
-      });
-
-      await safeReply(interaction, {
-        content: `✅ O acesso de ${member.user.tag} ao ticket foi removido.`,
-        ephemeral: true
-      });
-
-      await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor("#ED4245")
-            .setDescription(
-              `➖ O acesso de ${member.user.tag} foi removido por ${interaction.user}.`
-            )
-            .setTimestamp()
-        ]
-      });
-    }
-
-  } catch (error) {
-    console.error("[TICKETS] Erro ao gerenciar membros:", error);
-
-    await safeReply(interaction, {
-      content: "❌ Não foi possível alterar as permissões do membro.",
-      ephemeral: true
-    });
-  }
-}
-
- 
-// ======================================================
-// ZENITH — FECHAMENTO DE TICKETS
-// PARTE 4/6
-// ======================================================
-
-// Impede dois fechamentos simultâneos no mesmo canal.
-const ticketsClosing = new Set();
-
-// ======================================================
-// GERAR TRANSCRIÇÃO DO TICKET
-// ======================================================
-
-async function generateTicketTranscript(channel) {
-  const allMessages = [];
-  let lastId;
-
-  try {
-    while (true) {
-      const options = { limit: 100 };
-
-      if (lastId) {
-        options.before = lastId;
-      }
-
-      const batch = await channel.messages.fetch(options);
-
-      if (batch.size === 0) break;
-
-      allMessages.push(...batch.values());
-      lastId = batch.last().id;
-
-      if (batch.size < 100) break;
-
-      // Limite de segurança para evitar transcrições enormes.
-      if (allMessages.length >= 2000) break;
-    }
-
-    allMessages.sort(
-      (a, b) => a.createdTimestamp - b.createdTimestamp
+  if (cfg.ticketPanel.thumbnail) {
+    embed.setThumbnail(
+      cfg.ticketPanel.thumbnail
     );
+  }
 
-    const lines = [
-      `Transcrição do ticket: ${channel.name}`,
-      `Servidor: ${channel.guild.name}`,
-      `ID do canal: ${channel.id}`,
-      `Gerado em: ${new Date().toISOString()}`,
-      "=".repeat(80),
-      ""
-    ];
+  const row =
+    new ActionRowBuilder()
+      .addComponents(
 
-    for (const message of allMessages) {
-      const timestamp = new Date(message.createdTimestamp).toLocaleString(
-        "pt-BR",
-        { timeZone: "UTC" }
+        new ButtonBuilder()
+          .setCustomId(
+            "zenith_open_ticket"
+          )
+          .setLabel(
+            "Abrir Ticket"
+          )
+          .setEmoji("🎫")
+          .setStyle(
+            ButtonStyle.Primary
+          )
+
       );
-
-      const author = message.author
-        ? `${message.author.tag} (${message.author.id})`
-        : "Autor desconhecido";
-
-      lines.push(`[${timestamp}] ${author}`);
-
-      if (message.content) {
-        lines.push(message.content);
-      }
-
-      for (const attachment of message.attachments.values()) {
-        lines.push(`Anexo: ${attachment.url}`);
-      }
-
-      for (const embed of message.embeds) {
-        if (embed.title) lines.push(`Título: ${embed.title}`);
-        if (embed.description) {
-          lines.push(`Descrição: ${embed.description}`);
-        }
-      }
-
-      if (message.stickers.size) {
-        lines.push(
-          `Figurinhas: ${message.stickers.map(sticker => sticker.name).join(", ")}`
-        );
-      }
-
-      lines.push("");
-    }
-
-    return lines.join("\n");
-
-  } catch (error) {
-    console.error("[TICKETS] Erro ao gerar transcrição:", error);
-
-    return [
-      `Transcrição parcial: ${channel.name}`,
-      `Servidor: ${channel.guild.name}`,
-      `Canal: ${channel.id}`,
-      "Não foi possível recuperar todas as mensagens."
-    ].join("\n");
-  }
-}
-
-// ======================================================
-// CRIAR BOTÕES DE AVALIAÇÃO
-// ======================================================
-
-function createFeedbackButtons(guildId, ticketId) {
-  const row = new ActionRowBuilder();
-
-  for (let rating = 1; rating <= 5; rating++) {
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(
-          `feedback:${guildId}:${ticketId}:${rating}`
-        )
-        .setLabel(`${rating} ⭐`)
-        .setStyle(
-          rating >= 4
-            ? ButtonStyle.Success
-            : rating >= 3
-              ? ButtonStyle.Primary
-              : ButtonStyle.Secondary
-        )
-    );
-  }
-
-  return row;
-}
-
-// ======================================================
-// ENVIAR PEDIDO DE AVALIAÇÃO
-// ======================================================
-
-async function requestTicketFeedback(
-  guild,
-  ownerId,
-  ticketId,
-  ticketName,
-  transcript
-) {
-  try {
-    const config = guildConfig(guild.id);
-
-    const owner = await client.users.fetch(ownerId).catch(() => null);
-
-    if (owner) {
-      const embed = new EmbedBuilder()
-        .setColor("#5865F2")
-        .setTitle("⭐ Avalie seu atendimento")
-        .setDescription(
-          `Seu ticket **${ticketName}** foi encerrado.\n\n` +
-          "Como foi sua experiência com o atendimento do Zenith?\n" +
-          "Escolha uma nota de 1 a 5 estrelas abaixo."
-        )
-        .setFooter({ text: "Zenith • Avaliação de Atendimento" })
-        .setTimestamp();
-
-      await owner.send({
-        embeds: [embed],
-        components: [createFeedbackButtons(guild.id, ticketId)]
-      }).catch(() => null);
-    }
-
-    // Envia a transcrição ao canal de logs, se configurado.
-    if (config.logs) {
-      const logChannel =
-        guild.channels.cache.get(config.logs) ||
-        await guild.channels.fetch(config.logs).catch(() => null);
-
-      if (logChannel && logChannel.isTextBased()) {
-        const attachment = Buffer.from(transcript, "utf8");
-
-        await logChannel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setColor("#5865F2")
-              .setTitle("📄 Transcrição de ticket")
-              .setDescription(
-                `**Ticket:** ${ticketName}\n` +
-                `**Solicitante:** <@${ownerId}>\n` +
-                `**ID do canal:** \`${ticketId}\``
-              )
-              .setTimestamp()
-          ],
-          files: [{
-            attachment,
-            name: `transcricao-${ticketId}.txt`
-          }]
-        }).catch(error => {
-          console.error("[TICKETS] Erro ao enviar transcrição:", error);
-        });
-      }
-    }
-
-  } catch (error) {
-    console.error("[TICKETS] Erro ao solicitar avaliação:", error);
-  }
-}
-
-// ======================================================
-// FECHAR TICKET
-// ======================================================
-
-async function closeTicket(interaction) {
-  const channel = interaction.channel;
-
-  if (!isTicketChannel(channel)) {
-    return safeReply(interaction, {
-      content: "❌ Este canal não é um ticket válido.",
-      ephemeral: true
-    });
-  }
-
-  if (ticketsClosing.has(channel.id)) {
-    return safeReply(interaction, {
-      content: "⏳ Este ticket já está sendo encerrado.",
-      ephemeral: true
-    });
-  }
-
-  const ownerId = getTicketOwner(channel);
-  const isOwner = interaction.user.id === ownerId;
-  const isStaff = canManageTicket(interaction);
-
-  if (!isOwner && !isStaff) {
-    return safeReply(interaction, {
-      content: "❌ Somente o solicitante ou a equipe autorizada pode fechar este ticket.",
-      ephemeral: true
-    });
-  }
-
-  ticketsClosing.add(channel.id);
-
-  try {
-    await interaction.deferReply({ ephemeral: true });
-
-    await interaction.editReply({
-      content: "🔒 Encerrando ticket e preparando a transcrição..."
-    });
-
-    const transcript = await generateTicketTranscript(channel);
-    const guild = channel.guild;
-    const ticketName = channel.name;
-    const ticketId = channel.id;
-
-    await sendLog(
-      guild,
-      "🔒 Ticket encerrado",
-      `**Canal:** #${ticketName}\n` +
-      `**Solicitante:** <@${ownerId}>\n` +
-      `**Encerrado por:** ${interaction.user.tag} (\`${interaction.user.id}\`)\n` +
-      `**Transcrição:** sendo preparada.`,
-      "#ED4245"
-    );
-
-    await requestTicketFeedback(
-      guild,
-      ownerId,
-      ticketId,
-      ticketName,
-      transcript
-    );
-
-    await interaction.editReply({
-      content: "✅ Ticket encerrado. A transcrição foi processada e a avaliação foi enviada quando possível."
-    }).catch(() => null);
-
-    // Dá tempo para os logs serem enviados antes de excluir o canal.
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    await channel.delete(
-      `Ticket encerrado por ${interaction.user.tag}`
-    );
-
-  } catch (error) {
-    console.error("[TICKETS] Erro ao fechar ticket:", error);
-
-    await safeReply(interaction, {
-      content: "❌ Não foi possível concluir o fechamento. Verifique as permissões do bot.",
-      ephemeral: true
-    });
-
-  } finally {
-    ticketsClosing.delete(channel.id);
-  }
-}
-
-// ======================================================
-// REGISTRAR AVALIAÇÃO RECEBIDA
-// ======================================================
-
-async function handleTicketFeedback(interaction) {
-  try {
-    const parts = interaction.customId.split(":");
-
-    if (parts.length !== 4) {
-      return safeReply(interaction, {
-        content: "❌ Esta avaliação é inválida.",
-        ephemeral: true
-      });
-    }
-
-    const [, guildId, ticketId, ratingText] = parts;
-    const rating = Number(ratingText);
-
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      return safeReply(interaction, {
-        content: "❌ A nota precisa estar entre 1 e 5.",
-        ephemeral: true
-      });
-    }
-
-    const guild = client.guilds.cache.get(guildId);
-
-    if (!guild) {
-      return safeReply(interaction, {
-        content: "❌ Não consegui localizar o servidor deste atendimento.",
-        ephemeral: true
-      });
-    }
-
-    const config = guildConfig(guildId);
-
-    const alreadyRated = config.feedbacks.some(item => {
-      return (
-        item &&
-        typeof item === "object" &&
-        item.ticketId === ticketId &&
-        item.userId === interaction.user.id
-      );
-    });
-
-    if (alreadyRated) {
-      return safeReply(interaction, {
-        content: "ℹ️ Você já avaliou este atendimento.",
-        ephemeral: true
-      });
-    }
-
-    const feedback = {
-      ticketId,
-      userId: interaction.user.id,
-      username: interaction.user.tag,
-      rating,
-      createdAt: new Date().toISOString()
-    };
-
-    config.feedbacks.push(feedback);
-    saveDB();
-
-    await safeReply(interaction, {
-      content: `⭐ Obrigado pela avaliação! Você deu ${rating} de 5 estrelas.`,
-      ephemeral: true
-    });
-
-    // Desativa os botões depois da avaliação.
-    await interaction.message.edit({
-      components: []
-    }).catch(() => {});
-
-    await sendLog(
-      guild,
-      "⭐ Nova avaliação de atendimento",
-      `**Usuário:** ${interaction.user.tag} (\`${interaction.user.id}\`)\n` +
-      `**Nota:** ${"⭐".repeat(rating)} (${rating}/5)\n` +
-      `**Ticket:** \`${ticketId}\``,
-      rating >= 4 ? "#57F287" : rating >= 3 ? "#FEE75C" : "#ED4245"
-    );
-
-  } catch (error) {
-    console.error("[FEEDBACK] Erro ao registrar avaliação:", error);
-
-    await safeReply(interaction, {
-      content: "❌ Não foi possível salvar sua avaliação.",
-      ephemeral: true
-    });
-  }
-}
-
-// ======================================================
-// RESUMO DAS AVALIAÇÕES
-// ======================================================
-
-function getFeedbackSummary(guildId) {
-  const config = guildConfig(guildId);
-
-  const feedbacks = config.feedbacks.filter(item => {
-    return (
-      item &&
-      typeof item === "object" &&
-      Number.isInteger(item.rating) &&
-      item.rating >= 1 &&
-      item.rating <= 5
-    );
-  });
-
-  const total = feedbacks.length;
-
-  if (total === 0) {
-    return {
-      total: 0,
-      average: 0,
-      distribution: [0, 0, 0, 0, 0]
-    };
-  }
-
-  const sum = feedbacks.reduce((acc, item) => acc + item.rating, 0);
-
-  const distribution = [1, 2, 3, 4, 5].map(rating =>
-    feedbacks.filter(item => item.rating === rating).length
-  );
 
   return {
-    total,
-    average: Number((sum / total).toFixed(2)),
-    distribution
+    embeds: [embed],
+    components: [row]
   };
 }
 
-function configEmbed(guild) {
-  const config = guildConfig(guild.id);
+/* =========================================
+   MENU DE TIPOS DE TICKET
+========================================= */
 
-  const channelText = (id) => id ? `<#${id}>` : "`Não configurado`";
-  const roleText = (id) => id ? `<@&${id}>` : "`Não configurado`";
-  const ownerText = config.zenithOwner
-    ? `<@${config.zenithOwner}>`
-    : "`Dono do Zenith não configurado`";
+function ticketTypeMenu() {
+
+  const menu =
+    new StringSelectMenuBuilder()
+      .setCustomId(
+        "zenith_ticket_type"
+      )
+      .setPlaceholder(
+        "Selecione o tipo de atendimento"
+      )
+      .addOptions(
+        {
+          label: "Suporte",
+          description:
+            "Preciso de ajuda",
+          value: "suporte",
+          emoji: "🎫"
+        },
+        {
+          label: "Denúncia",
+          description:
+            "Enviar uma denúncia",
+          value: "denuncia",
+          emoji: "🚨"
+        },
+        {
+          label: "Dúvida",
+          description:
+            "Tenho uma dúvida",
+          value: "duvida",
+          emoji: "❓"
+        },
+        {
+          label: "Compras",
+          description:
+            "Ajuda com compras",
+          value: "compra",
+          emoji: "🛒"
+        }
+      );
+
+  return new ActionRowBuilder()
+    .addComponents(menu);
+}
+
+/* =========================================
+   CRIAR TICKET
+========================================= */
+
+async function createTicket(
+  interaction,
+  type
+) {
+
+  const guild =
+    interaction.guild;
+
+  const cfg =
+    guildConfig(guild);
+
+  const existing =
+    guild.channels.cache.find(
+      c =>
+        c.type ===
+          ChannelType.GuildText &&
+        c.topic ===
+          `ZENITH_TICKET:${interaction.user.id}`
+    );
+
+  if (existing) {
+
+    return interaction.reply({
+      content:
+        `❌ Você já possui um ticket aberto: ${existing}`,
+      ephemeral: true
+    });
+  }
+
+  let category =
+    cfg.ticketCategory;
+
+  if (
+    category &&
+    !guild.channels.cache.has(category)
+  ) {
+    category = null;
+  }
+
+  if (!category) {
+
+    const found =
+      guild.channels.cache.find(
+        c =>
+          c.type ===
+            ChannelType.GuildCategory &&
+          c.name
+            .toLowerCase()
+            .includes("ticket")
+      );
+
+    category =
+      found?.id || null;
+  }
+
+  const names = {
+    suporte: "suporte",
+    denuncia: "denuncia",
+    duvida: "duvida",
+    compra: "compras"
+  };
+
+  const channel =
+    await guild.channels.create({
+
+      name:
+        `ticket-${names[type] || "atendimento"}-${interaction.user.username}`
+          .toLowerCase()
+          .replace(
+            /[^a-z0-9-]/g,
+            ""
+          )
+          .slice(0, 80),
+
+      type:
+        ChannelType.GuildText,
+
+      parent:
+        category || undefined,
+
+      topic:
+        `ZENITH_TICKET:${interaction.user.id}`,
+
+      permissionOverwrites: [
+
+        {
+          id:
+            guild.roles.everyone.id,
+
+          deny: [
+            PermissionFlagsBits.ViewChannel
+          ]
+        },
+
+        {
+          id:
+            interaction.user.id,
+
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory
+          ]
+        },
+
+        {
+          id:
+            cfg.zenithOwner ||
+            guild.ownerId,
+
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory
+          ]
+        }
+
+      ]
+    });
+
+  const labels = {
+    suporte: "🎫 Suporte",
+    denuncia: "🚨 Denúncia",
+    duvida: "❓ Dúvida",
+    compra: "🛒 Compras"
+  };
+
+  const embed =
+    new EmbedBuilder()
+      .setTitle(
+        `🎫 ${labels[type] || "Atendimento"}`
+      )
+      .setDescription(
+        `Olá <@${interaction.user.id}>!\n\n` +
+        `Explique seu problema com o máximo de detalhes possível.\n\n` +
+        `Quando terminar, clique em **Fechar Ticket**.`
+      )
+      .setColor(0x5865F2)
+      .setFooter({
+        text:
+          "Zenith • Sistema de Tickets"
+      })
+      .setTimestamp();
+
+  const row =
+    new ActionRowBuilder()
+      .addComponents(
+
+        new ButtonBuilder()
+          .setCustomId(
+            "zenith_close_ticket"
+          )
+          .setLabel(
+            "Fechar Ticket"
+          )
+          .setEmoji("🔒")
+          .setStyle(
+            ButtonStyle.Danger
+          )
+
+      );
+
+  await channel.send({
+    content:
+      `<@${interaction.user.id}>`,
+    embeds: [embed],
+    components: [row]
+  });
+
+  await sendLog(
+    guild,
+    "🎫 Ticket aberto",
+    `**Usuário:** <@${interaction.user.id}>\n` +
+    `**Tipo:** ${labels[type]}\n` +
+    `**Canal:** ${channel}`
+  );
+
+  return interaction.reply({
+    content:
+      `✅ Ticket criado: ${channel}`,
+    ephemeral: true
+  });
+}
+
+/* =========================================
+   FECHAR TICKET
+========================================= */
+
+async function closeTicket(
+  interaction
+) {
+
+  const channel =
+    interaction.channel;
+
+  const guild =
+    interaction.guild;
+
+  const openerId =
+    channel.topic?.startsWith(
+      "ZENITH_TICKET:"
+    )
+      ? channel.topic.split(":")[1]
+      : null;
+
+  const cfg =
+    guildConfig(guild);
+
+  if (
+    interaction.user.id !==
+      cfg.zenithOwner &&
+    interaction.user.id !==
+      openerId
+  ) {
+
+    return interaction.reply({
+      content:
+        "❌ Apenas o dono do ticket ou o dono do Zenith pode fechá-lo.",
+      ephemeral: true
+    });
+  }
+
+  await interaction.reply({
+    content:
+      "🔒 Fechando ticket...",
+    ephemeral: true
+  });
+
+  let messages = [];
+
+  try {
+
+    let last;
+
+    for (let i = 0; i < 5; i++) {
+
+      const fetched =
+        await channel.messages.fetch({
+          limit: 100,
+          before: last
+        });
+
+      if (!fetched.size)
+        break;
+
+      messages.push(
+        ...fetched.values()
+      );
+
+      last =
+        fetched.last().id;
+
+      if (fetched.size < 100)
+        break;
+    }
+
+  } catch {}
+
+  messages.reverse();
+
+  const transcript =
+    messages
+      .map(
+        m =>
+          `[${new Date(
+            m.createdTimestamp
+          ).toLocaleString("pt-BR")}] ` +
+          `${m.author.tag}: ${m.content}`
+      )
+      .join("\n");
+
+  if (openerId) {
+
+    try {
+
+      const user =
+        await client.users.fetch(
+          openerId
+        );
+
+      const row =
+        new ActionRowBuilder()
+          .addComponents(
+
+            new ButtonBuilder()
+              .setCustomId(
+                `feedback:${guild.id}:${channel.id}:1`
+              )
+              .setLabel("1 ⭐")
+              .setStyle(
+                ButtonStyle.Secondary
+              ),
+
+            new ButtonBuilder()
+              .setCustomId(
+                `feedback:${guild.id}:${channel.id}:2`
+              )
+              .setLabel("2 ⭐")
+              .setStyle(
+                ButtonStyle.Secondary
+              ),
+
+            new ButtonBuilder()
+              .setCustomId(
+                `feedback:${guild.id}:${channel.id}:3`
+              )
+              .setLabel("3 ⭐")
+              .setStyle(
+                ButtonStyle.Primary
+              ),
+
+            new ButtonBuilder()
+              .setCustomId(
+                `feedback:${guild.id}:${channel.id}:4`
+              )
+              .setLabel("4 ⭐")
+              .setStyle(
+                ButtonStyle.Success
+              ),
+
+            new ButtonBuilder()
+              .setCustomId(
+                `feedback:${guild.id}:${channel.id}:5`
+              )
+              .setLabel("5 ⭐")
+              .setStyle(
+                ButtonStyle.Success
+              )
+
+          );
+
+      await user.send({
+
+        embeds: [
+
+          new EmbedBuilder()
+            .setTitle(
+              "⭐ Avalie seu atendimento"
+            )
+            .setDescription(
+              `Seu ticket em **${guild.name}** foi encerrado.\n\n` +
+              `Como foi seu atendimento?`
+            )
+            .setColor(0xFEE75C)
+
+        ],
+
+        components: [row]
+      });
+
+    } catch {}
+  }
+
+  await sendLog(
+    guild,
+    "🔒 Ticket fechado",
+    `**Usuário:** <@${openerId || "desconhecido"}>\n` +
+    `**Fechado por:** <@${interaction.user.id}>\n` +
+    `**Canal:** #${channel.name}`
+  );
+
+  setTimeout(
+    async () => {
+
+      try {
+        await channel.delete(
+          "Zenith Ticket fechado"
+        );
+      } catch {}
+
+    },
+    1500
+  );
+}
+
+/* =========================================
+   PAINEL CONFIG
+========================================= */
+
+function configEmbed(guild) {
+
+  const cfg =
+    guildConfig(guild);
+
+  const owner =
+    cfg.zenithOwner
+      ? `<@${cfg.zenithOwner}>`
+      : "❌ Não configurado";
+
+  const category =
+    cfg.ticketCategory
+      ? `<#${cfg.ticketCategory}>`
+      : "❌ Não configurada";
+
+  const logs =
+    cfg.logs
+      ? `<#${cfg.logs}>`
+      : "❌ Não configurado";
+
+  const feedback =
+    cfg.feedbackChannel
+      ? `<#${cfg.feedbackChannel}>`
+      : "❌ Não configurado";
+
+  const panel =
+    cfg.ticketPanelChannel
+      ? `<#${cfg.ticketPanelChannel}>`
+      : "❌ Não configurado";
 
   return new EmbedBuilder()
-    .setColor("#5865F2")
-    .setTitle("⚙️・Painel de Configuração — Zenith")
+    .setTitle("⚙️ Zenith • Configuração")
     .setDescription(
-      "Configure os principais sistemas do bot usando os botões abaixo.\n" +
-      "As alterações são salvas automaticamente."
+      "Configure o Zenith através dos botões abaixo."
     )
     .addFields(
+
       {
-        name: "👑 Responsável pelo Zenith",
-        value: ownerText,
-        inline: false
-      },
-      {
-        name: "📂 Categoria dos tickets",
-        value: channelText(config.ticketCategory),
+        name: "👑 Dono do Zenith",
+        value: owner,
         inline: true
       },
+
       {
-        name: "📋 Canal de logs",
-        value: channelText(config.logs),
+        name: "🎫 Categoria",
+        value: category,
         inline: true
       },
+
       {
-        name: "⭐ Canal de feedback",
-        value: channelText(config.feedbackChannel),
+        name: "📋 Logs",
+        value: logs,
         inline: true
       },
+
       {
-        name: "🎫 Canal do painel de tickets",
-        value: channelText(config.ticketPanelChannel),
+        name: "⭐ Avaliações",
+        value: feedback,
         inline: true
       },
+
       {
-        name: "🛡️ Proteção do servidor",
+        name: "🎟️ Painel",
+        value: panel,
+        inline: true
+      },
+
+      {
+        name: "🛡️ Anti-Raid",
         value:
-          `Anti-raid: ${config.antiraid ? "🟢 Ativado" : "🔴 Desativado"}\n` +
-          `Anti-spam: ${config.antispam ? "🟢 Ativado" : "🔴 Desativado"}\n` +
-          `Proteção contra bots: ${config.botProtection ? "🟢 Ativada" : "🔴 Desativada"}`,
-        inline: false
+          cfg.antiraid
+            ? "🟢 ATIVO"
+            : "🔴 DESATIVADO",
+        inline: true
       },
+
       {
-        name: "🎨 Personalização do painel",
+        name: "💬 Anti-Spam",
         value:
-          `**Título:** ${config.ticketPanel.title || "Não definido"}\n` +
-          `**Cor:** ${config.ticketPanel.color || "#5865F2"}\n` +
-          `**Rodapé:** ${config.ticketPanel.footer || "Não definido"}`,
-        inline: false
+          cfg.antispam
+            ? "🟢 ATIVO"
+            : "🔴 DESATIVADO",
+        inline: true
+      },
+
+      {
+        name: "🤖 Anti-Bot",
+        value:
+          cfg.botProtection
+            ? "🟢 ATIVO"
+            : "🔴 DESATIVADO",
+        inline: true
       }
+
     )
-    .setFooter({ text: "Zenith • Configurações do servidor" })
+    .setColor(0x5865F2)
+    .setFooter({
+      text:
+        "Zenith Security • Configuração"
+    })
     .setTimestamp();
 }
 
 function configButtons() {
-  const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("config_owner")
-      .setLabel("Responsável")
-      .setEmoji("👑")
-      .setStyle(ButtonStyle.Secondary),
-
-    new ButtonBuilder()
-      .setCustomId("config_category")
-      .setLabel("Categoria")
-      .setEmoji("📂")
-      .setStyle(ButtonStyle.Secondary),
-
-    new ButtonBuilder()
-      .setCustomId("config_logs")
-      .setLabel("Logs")
-      .setEmoji("📋")
-      .setStyle(ButtonStyle.Secondary),
-
-    new ButtonBuilder()
-      .setCustomId("config_feedback")
-      .setLabel("Feedback")
-      .setEmoji("⭐")
-      .setStyle(ButtonStyle.Secondary),
-
-    new ButtonBuilder()
-      .setCustomId("config_panel")
-      .setLabel("Personalizar painel")
-      .setEmoji("🎨")
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("config_security")
-      .setLabel("Segurança")
-      .setEmoji("🛡️")
-      .setStyle(ButtonStyle.Danger),
-
-    new ButtonBuilder()
-      .setCustomId("config_send_panel")
-      .setLabel("Publicar painel")
-      .setEmoji("🎫")
-      .setStyle(ButtonStyle.Success),
-
-    new ButtonBuilder()
-      .setCustomId("config_refresh")
-      .setLabel("Atualizar")
-      .setEmoji("🔄")
-      .setStyle(ButtonStyle.Secondary)
-  );
-
-  return [row1, row2];
-}
-
-function configSecurityEmbed(guild) {
-  const config = guildConfig(guild.id);
-
-  return new EmbedBuilder()
-    .setColor("#ED4245")
-    .setTitle("🛡️・Segurança do Zenith")
-    .setDescription(
-      "Ative ou desative os sistemas de proteção abaixo.\n\n" +
-      "• **Anti-raid:** monitora alterações suspeitas em canais e cargos.\n" +
-      "• **Anti-spam:** monitora mensagens repetidas em excesso.\n" +
-      "• **Proteção contra bots:** monitora a entrada de bots no servidor."
-    )
-    .addFields({
-      name: "Estado atual",
-      value:
-        `Anti-raid: ${config.antiraid ? "🟢 Ativado" : "🔴 Desativado"}\n` +
-        `Anti-spam: ${config.antispam ? "🟢 Ativado" : "🔴 Desativado"}\n` +
-        `Proteção contra bots: ${config.botProtection ? "🟢 Ativada" : "🔴 Desativada"}`
-    })
-    .setFooter({ text: "Zenith • Central de segurança" });
-}
-
-function configSecurityButtons(guild) {
-  const config = guildConfig(guild.id);
 
   return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("config_toggle_antiraid")
-        .setLabel(config.antiraid ? "Desativar anti-raid" : "Ativar anti-raid")
-        .setStyle(config.antiraid ? ButtonStyle.Danger : ButtonStyle.Success),
 
-      new ButtonBuilder()
-        .setCustomId("config_toggle_antispam")
-        .setLabel(config.antispam ? "Desativar anti-spam" : "Ativar anti-spam")
-        .setStyle(config.antispam ? ButtonStyle.Danger : ButtonStyle.Success),
+    new ActionRowBuilder()
+      .addComponents(
 
-      new ButtonBuilder()
-        .setCustomId("config_toggle_botProtection")
-        .setLabel(config.botProtection ? "Desativar anti-bots" : "Ativar anti-bots")
-        .setStyle(config.botProtection ? ButtonStyle.Danger : ButtonStyle.Success)
-    ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("config_security_back")
-        .setLabel("Voltar às configurações")
-        .setEmoji("⬅️")
-        .setStyle(ButtonStyle.Secondary)
-    )
+        new ButtonBuilder()
+          .setCustomId(
+            "config_owner"
+          )
+          .setLabel("Dono")
+          .setEmoji("👑")
+          .setStyle(
+            ButtonStyle.Primary
+          ),
+
+        new ButtonBuilder()
+          .setCustomId(
+            "config_category"
+          )
+          .setLabel("Categoria")
+          .setEmoji("🎫")
+          .setStyle(
+            ButtonStyle.Primary
+          ),
+
+        new ButtonBuilder()
+          .setCustomId(
+            "config_logs"
+          )
+          .setLabel("Logs")
+          .setEmoji("📋")
+          .setStyle(
+            ButtonStyle.Secondary
+          ),
+
+        new ButtonBuilder()
+          .setCustomId(
+            "config_feedback"
+          )
+          .setLabel("Avaliações")
+          .setEmoji("⭐")
+          .setStyle(
+            ButtonStyle.Secondary
+          ),
+
+        new ButtonBuilder()
+          .setCustomId(
+            "config_panel"
+          )
+          .setLabel("Canal do Painel")
+          .setEmoji("🎟️")
+          .setStyle(
+            ButtonStyle.Secondary
+          )
+
+      ),
+
+    new ActionRowBuilder()
+      .addComponents(
+
+        new ButtonBuilder()
+          .setCustomId(
+            "config_security"
+          )
+          .setLabel("Segurança")
+          .setEmoji("🛡️")
+          .setStyle(
+            ButtonStyle.Danger
+          ),
+
+        new ButtonBuilder()
+          .setCustomId(
+            "config_refresh"
+          )
+          .setLabel("Atualizar")
+          .setEmoji("🔄")
+          .setStyle(
+            ButtonStyle.Success
+          )
+
+      )
+
   ];
 }
 
-function createConfigChannelSelect(customId, placeholder, channelType) {
-  const menu = new ChannelSelectMenuBuilder()
-    .setCustomId(customId)
-    .setPlaceholder(placeholder)
-    .setMinValues(1)
-    .setMaxValues(1);
+/* =========================================
+   INTERAÇÕES
+========================================= */
 
-  if (channelType !== undefined) {
-    menu.setChannelTypes(channelType);
-  }
+client.on(
+  "interactionCreate",
+  async interaction => {
 
-  return new ActionRowBuilder().addComponents(menu);
-}
+    /* =========================================
+       ⭐ CONFIGURAÇÃO DO CANAL DE AVALIAÇÕES
+       ========================================= */
 
-function createOwnerModal() {
-  const input = new TextInputBuilder()
-    .setCustomId("zenith_owner_id")
-    .setLabel("ID do usuário responsável")
-    .setPlaceholder("Digite o ID numérico do usuário")
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setMinLength(17)
-    .setMaxLength(20);
-
-  return new ModalBuilder()
-    .setCustomId("config_owner_modal")
-    .setTitle("Configurar responsável do Zenith")
-    .addComponents(
-      new ActionRowBuilder().addComponents(input)
-    );
-}
-
-function createTicketPanelModal(guild) {
-  const config = guildConfig(guild.id);
-  const panel = config.ticketPanel;
-
-  const titleInput = new TextInputBuilder()
-    .setCustomId("panel_title")
-    .setLabel("Título do painel")
-    .setStyle(TextInputStyle.Short)
-    .setValue(String(panel.title || "🎫 Central de Atendimento").slice(0, 100))
-    .setMaxLength(100)
-    .setRequired(true);
-
-  const descriptionInput = new TextInputBuilder()
-    .setCustomId("panel_description")
-    .setLabel("Descrição do painel")
-    .setStyle(TextInputStyle.Paragraph)
-    .setValue(String(panel.description || "Selecione abaixo o tipo de atendimento desejado.").slice(0, 1000))
-    .setMaxLength(1000)
-    .setRequired(true);
-
-  const colorInput = new TextInputBuilder()
-    .setCustomId("panel_color")
-    .setLabel("Cor hexadecimal (ex.: #5865F2)")
-    .setStyle(TextInputStyle.Short)
-    .setValue(String(panel.color || "#5865F2").slice(0, 7))
-    .setMaxLength(7)
-    .setRequired(true);
-
-  const footerInput = new TextInputBuilder()
-    .setCustomId("panel_footer")
-    .setLabel("Texto do rodapé")
-    .setStyle(TextInputStyle.Short)
-    .setValue(String(panel.footer || "Zenith • Atendimento").slice(0, 100))
-    .setMaxLength(100)
-    .setRequired(true);
-
-  return new ModalBuilder()
-    .setCustomId("config_panel_modal")
-    .setTitle("Personalizar painel de tickets")
-    .addComponents(
-      new ActionRowBuilder().addComponents(titleInput),
-      new ActionRowBuilder().addComponents(descriptionInput),
-      new ActionRowBuilder().addComponents(colorInput),
-      new ActionRowBuilder().addComponents(footerInput)
-    );
-}
-
-function canConfigure(interaction) {
-  if (!interaction.guild || !interaction.member) return false;
-
-  return isZenithOwner(interaction) ||
-    interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
-}
-
-client.on("interactionCreate", async (interaction) => {
-  try {
-    // Comandos slash
-    if (interaction.isChatInputCommand()) {
-      const command = client.commands.get(interaction.commandName);
-
-      if (!command) {
-        return safeReply(interaction, {
-          content: "❌ Esse comando não foi encontrado.",
-          ephemeral: true
-        });
-      }
-
-      await command.execute(interaction, client);
-      return;
-    }
-
-    // Seleção do tipo de ticket
     if (
-      interaction.isStringSelectMenu() &&
-      interaction.customId === "zenith_ticket_type"
+      interaction.isChannelSelectMenu() &&
+      interaction.customId === "config_feedback_select"
     ) {
-      await createTicket(interaction, interaction.values[0]);
-      return;
-    }
 
-    // Avaliação de tickets
-    if (
-      interaction.isButton() &&
-      interaction.customId.startsWith("feedback:")
-    ) {
-      await handleTicketFeedback(interaction);
-      return;
-    }
+      try {
 
-    // Seleção de membros para adicionar/remover do ticket
-    if (
-      interaction.isUserSelectMenu() &&
-      (
-        interaction.customId === "zenith_ticket_add_user_select" ||
-        interaction.customId === "zenith_ticket_remove_user_select"
-      )
-    ) {
-      const action = interaction.customId === "zenith_ticket_add_user_select"
-        ? "add"
-        : "remove";
+        const guild = interaction.guild;
 
-      await processTicketMemberSelect(interaction, action);
-      return;
-    }
-
-    // Seleção de canais nas configurações
-    if (interaction.isChannelSelectMenu()) {
-      if (!canConfigure(interaction)) {
-        return safeReply(interaction, {
-          content: "❌ Você precisa ser administrador ou responsável pelo Zenith para alterar essas configurações.",
-          ephemeral: true
-        });
-      }
-
-      const selectedChannelId = interaction.values[0];
-      const config = guildConfig(interaction.guild.id);
-
-      if (interaction.customId === "config_category_select") {
-        const selected = interaction.guild.channels.cache.get(selectedChannelId);
-
-        if (!selected || selected.type !== ChannelType.GuildCategory) {
-          return safeReply(interaction, {
-            content: "❌ Selecione uma categoria válida.",
+        if (!guild) {
+          return interaction.reply({
+            content: "❌ Essa ação só pode ser usada em um servidor.",
             ephemeral: true
           });
         }
 
-        config.ticketCategory = selectedChannelId;
+        const cfg = guildConfig(guild);
+
+        const channelId =
+          interaction.values &&
+          interaction.values[0];
+
+        if (!channelId) {
+          return interaction.reply({
+            content: "❌ Nenhum canal foi selecionado.",
+            ephemeral: true
+          });
+        }
+
+        const channel =
+          guild.channels.cache.get(channelId);
+
+        if (!channel) {
+          return interaction.reply({
+            content: "❌ Não encontrei o canal selecionado.",
+            ephemeral: true
+          });
+        }
+
+        cfg.feedbackChannel = channel.id;
+
         saveDB();
 
-        await safeReply(interaction, {
-          content: `✅ Categoria dos tickets definida para ${selected}.`,
-          ephemeral: true
+        console.log(
+          `[CONFIG] Canal de avaliações definido: ${channel.id}`
+        );
+
+        return interaction.update({
+          content:
+            `⭐ **Canal de avaliações configurado!**\n\n` +
+            `As avaliações dos tickets serão enviadas em ${channel}.`,
+          components: []
         });
-        return;
+
+      } catch (error) {
+
+        console.error(
+          "[FEEDBACK CHANNEL ERROR]",
+          error
+        );
+
+        if (
+          !interaction.replied &&
+          !interaction.deferred
+        ) {
+          return interaction.reply({
+            content:
+              "❌ Erro ao configurar o canal de avaliações.",
+            ephemeral: true
+          });
+        }
       }
+    }
+
+
+
+    try {
+
+      /* ===============================
+         MENU ÚNICO DE TICKETS
+      =============================== */
 
       if (
-        interaction.customId === "config_logs_select" ||
-        interaction.customId === "config_feedback_select" ||
-        interaction.customId === "config_ticket_panel_channel_select"
+        interaction.isButton() &&
+        interaction.customId ===
+          "zenith_open_ticket"
       ) {
-        const selected = interaction.guild.channels.cache.get(selectedChannelId);
 
-        if (!selected || selected.type !== ChannelType.GuildText) {
-          return safeReply(interaction, {
-            content: "❌ Selecione um canal de texto válido.",
+        return interaction.reply({
+          content:
+            "🎫 **Escolha o tipo de atendimento:**",
+          components: [
+            ticketTypeMenu()
+          ],
+          ephemeral: true
+        });
+      }
+
+      /* ===============================
+         ESCOLHA DO TIPO
+      =============================== */
+
+      if (
+        interaction.isStringSelectMenu() &&
+        interaction.customId ===
+          "zenith_ticket_type"
+      ) {
+
+        const type =
+          interaction.values[0];
+
+        return createTicket(
+          interaction,
+          type
+        );
+      }
+
+      /* ===============================
+         FECHAR
+      =============================== */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "zenith_close_ticket"
+      ) {
+
+        return closeTicket(
+          interaction
+        );
+      }
+
+      /* ===============================
+         FEEDBACK
+      =============================== */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId.startsWith(
+          "feedback:"
+        )
+      ) {
+
+        const parts =
+          interaction.customId.split(":");
+
+        const guildId = parts[1];
+        const ticketId = parts[2];
+        const rating =
+          Number(parts[3]);
+
+        const guild =
+          client.guilds.cache.get(
+            guildId
+          );
+
+        if (!guild) {
+
+          return interaction.reply({
+            content:
+              "❌ Servidor não encontrado.",
             ephemeral: true
           });
         }
 
-        if (interaction.customId === "config_logs_select") {
-          config.logs = selectedChannelId;
-        } else if (interaction.customId === "config_feedback_select") {
-          config.feedbackChannel = selectedChannelId;
-        } else {
-          config.ticketPanelChannel = selectedChannelId;
-        }
+        const cfg =
+          guildConfig(guild);
+
+        cfg.feedbacks.push({
+          userId:
+            interaction.user.id,
+          ticketId,
+          rating,
+          date:
+            new Date().toISOString()
+        });
 
         saveDB();
 
-        await safeReply(interaction, {
-          content: `✅ Configuração atualizada: ${selected}.`,
-          ephemeral: true
+        const feedbackChannel =
+          cfg.feedbackChannel
+            ? guild.channels.cache.get(
+                cfg.feedbackChannel
+              )
+            : null;
+
+        if (
+          feedbackChannel &&
+          feedbackChannel.isTextBased()
+        ) {
+
+          const feedbackEmbed =
+            new EmbedBuilder()
+              .setTitle(
+                "⭐ Nova avaliação de atendimento"
+              )
+              .setDescription(
+                `**Cliente:** <@${interaction.user.id}>\n` +
+                `**Nota:** ${"⭐".repeat(rating)}\n` +
+                `**Avaliação:** ${rating}/5\n\n` +
+                `**Ticket:** \`${ticketId}\``
+              )
+              .setColor(
+                rating >= 4
+                  ? 0x57F287
+                  : rating === 3
+                    ? 0xFEE75C
+                    : 0xED4245
+              )
+              .setTimestamp();
+
+          await feedbackChannel.send({
+            embeds: [feedbackEmbed]
+          });
+        }
+
+        return interaction.update({
+          content:
+            `✅ Obrigado pelo feedback!\n\n` +
+            `Você deu **${rating}/5 ⭐**.`,
+          embeds: [],
+          components: []
         });
-        return;
-      }
-    }
-
-    // Botões
-    if (interaction.isButton()) {
-      const id = interaction.customId;
-
-      if (id === "zenith_close_ticket") {
-        await closeTicket(interaction);
-        return;
       }
 
-      if (id === "zenith_claim_ticket") {
-        await claimTicket(interaction);
-        return;
-      }
+      /* ===============================
+         COMANDOS
+      =============================== */
 
-      if (id === "zenith_add_ticket_member") {
-        await openTicketMemberSelector(interaction, "add");
-        return;
-      }
+      if (
+        interaction.isChatInputCommand()
+      ) {
 
-      if (id === "zenith_remove_ticket_member") {
-        await openTicketMemberSelector(interaction, "remove");
-        return;
-      }
+        if (!interaction.guild) {
 
-      if (id.startsWith("config_")) {
-        if (!canConfigure(interaction)) {
-          return safeReply(interaction, {
-            content: "❌ Você precisa ser administrador ou responsável pelo Zenith para alterar essas configurações.",
+          return interaction.reply({
+            content:
+              "❌ Use este comando dentro de um servidor.",
             ephemeral: true
           });
         }
 
-        const config = guildConfig(interaction.guild.id);
+        const guild =
+          interaction.guild;
 
-        if (id === "config_refresh") {
-          await interaction.update({
-            embeds: [configEmbed(interaction.guild)],
-            components: configButtons()
-          });
-          return;
-        }
+        const cfg =
+          guildConfig(guild);
 
-        if (id === "config_owner") {
-          await interaction.showModal(createOwnerModal());
-          return;
-        }
+        /* PRIMEIRO CONFIG */
 
-        if (id === "config_category") {
-          await safeReply(interaction, {
-            content: "📂 Selecione a categoria onde os tickets serão criados.",
-            components: [
-              createConfigChannelSelect(
-                "config_category_select",
-                "Selecionar categoria",
-                ChannelType.GuildCategory
-              )
-            ],
-            ephemeral: true
-          });
-          return;
-        }
+        if (
+          interaction.commandName ===
+          "config"
+        ) {
 
-        if (id === "config_logs") {
-          await safeReply(interaction, {
-            content: "📋 Selecione o canal onde o Zenith enviará os logs.",
-            components: [
-              createConfigChannelSelect(
-                "config_logs_select",
-                "Selecionar canal de logs",
-                ChannelType.GuildText
-              )
-            ],
-            ephemeral: true
-          });
-          return;
-        }
+          if (!cfg.zenithOwner) {
 
-        if (id === "config_feedback") {
-          await safeReply(interaction, {
-            content: "⭐ Selecione o canal para receber os feedbacks.",
-            components: [
-              createConfigChannelSelect(
-                "config_feedback_select",
-                "Selecionar canal de feedback",
-                ChannelType.GuildText
-              )
-            ],
-            ephemeral: true
-          });
-          return;
-        }
-
-        if (id === "config_panel") {
-          await interaction.showModal(createTicketPanelModal(interaction.guild));
-          return;
-        }
-
-        if (id === "config_send_panel") {
-          const channelId = config.ticketPanelChannel;
-
-          if (!channelId) {
-            return safeReply(interaction, {
-              content: "⚠️ Configure primeiro o canal do painel de tickets.",
+            return interaction.reply({
+              embeds: [
+                new EmbedBuilder()
+                  .setTitle(
+                    "👑 Configurar Zenith"
+                  )
+                  .setDescription(
+                    "O Zenith ainda não possui um proprietário configurado.\n\n" +
+                    "Somente o **dono atual do servidor Discord** pode fazer a primeira configuração."
+                  )
+                  .setColor(
+                    0xFEE75C
+                  )
+              ],
               components: [
-                createConfigChannelSelect(
-                  "config_ticket_panel_channel_select",
-                  "Selecionar canal do painel",
-                  ChannelType.GuildText
-                )
+                new ActionRowBuilder()
+                  .addComponents(
+
+                    new ButtonBuilder()
+                      .setCustomId(
+                        "config_first_owner"
+                      )
+                      .setLabel(
+                        "Configurar como dono"
+                      )
+                      .setEmoji("👑")
+                      .setStyle(
+                        ButtonStyle.Success
+                      )
+
+                  )
               ],
               ephemeral: true
             });
           }
 
-          const channel = interaction.guild.channels.cache.get(channelId);
+          if (!isZenithOwner(interaction)) {
 
-          if (!channel || channel.type !== ChannelType.GuildText) {
-            config.ticketPanelChannel = null;
+            return interaction.reply({
+              content:
+                "🔒 Você não é o proprietário configurado do Zenith.",
+              ephemeral: true
+            });
+          }
+
+          return interaction.reply({
+            embeds: [
+              configEmbed(guild)
+            ],
+            components:
+              configButtons(),
+            ephemeral: true
+          });
+        }
+
+        /* TODOS OS OUTROS COMANDOS */
+
+        if (!isZenithOwner(interaction)) {
+
+          return interaction.reply({
+            content:
+              "🔒 Apenas o proprietário configurado do Zenith pode usar este comando.",
+            ephemeral: true
+          });
+        }
+
+        /* SETUP */
+
+        if (
+          interaction.commandName ===
+          "setup"
+        ) {
+
+          let category =
+            guild.channels.cache.find(
+              c =>
+                c.type ===
+                  ChannelType.GuildCategory &&
+                c.name
+                  .toLowerCase()
+                  .includes("ticket")
+            );
+
+          if (!category) {
+
+            category =
+              await guild.channels.create({
+                name:
+                  "🎫 TICKETS",
+                type:
+                  ChannelType.GuildCategory
+              });
+          }
+
+          let logs =
+            guild.channels.cache.find(
+              c =>
+                c.type ===
+                  ChannelType.GuildText &&
+                c.name ===
+                  "zenith-logs"
+            );
+
+          if (!logs) {
+
+            logs =
+              await guild.channels.create({
+                name:
+                  "zenith-logs",
+                type:
+                  ChannelType.GuildText
+              });
+          }
+
+          cfg.ticketCategory =
+            category.id;
+
+          cfg.logs =
+            logs.id;
+
+          saveDB();
+
+          return interaction.reply({
+            content:
+              `✅ Zenith configurado automaticamente!\n\n` +
+              `🎫 Categoria: ${category}\n` +
+              `📋 Logs: ${logs}\n\n` +
+              `Agora use **/config** para personalizar tudo.`,
+            ephemeral: true
+          });
+        }
+
+        /* TICKET */
+
+        if (
+          interaction.commandName ===
+          "ticket"
+        ) {
+
+          const sub =
+            interaction.options
+              .getSubcommand();
+
+          if (
+            sub === "categoria"
+          ) {
+
+            cfg.ticketCategory =
+              interaction.options
+                .getChannel("canal")
+                .id;
+
             saveDB();
 
-            return safeReply(interaction, {
-              content: "⚠️ O canal configurado não existe mais. Selecione outro canal.",
-              components: [
-                createConfigChannelSelect(
-                  "config_ticket_panel_channel_select",
-                  "Selecionar canal do painel",
-                  ChannelType.GuildText
+            return interaction.reply({
+              content:
+                "✅ Categoria dos tickets atualizada.",
+              ephemeral: true
+            });
+          }
+
+          if (
+            sub === "painel"
+          ) {
+
+            const result =
+              createTicketPanel(cfg);
+
+            const target =
+              cfg.ticketPanelChannel
+                ? guild.channels.cache.get(
+                    cfg.ticketPanelChannel
+                  )
+                : interaction.channel;
+
+            if (
+              !target ||
+              !target.isTextBased()
+            ) {
+
+              return interaction.reply({
+                content:
+                  "❌ Configure primeiro o canal do painel em `/config`.",
+                ephemeral: true
+              });
+            }
+
+            await target.send(result);
+
+            return interaction.reply({
+              content:
+                `✅ Painel de tickets enviado em ${target}.`,
+              ephemeral: true
+            });
+          }
+
+          if (
+            sub === "editar"
+          ) {
+
+            const modal =
+              new ModalBuilder()
+                .setCustomId(
+                  "ticket_edit_modal"
                 )
-              ],
+                .setTitle(
+                  "Editar painel Zenith"
+                );
+
+            const title =
+              new TextInputBuilder()
+                .setCustomId("title")
+                .setLabel("Título")
+                .setStyle(
+                  TextInputStyle.Short
+                )
+                .setRequired(true)
+                .setValue(
+                  cfg.ticketPanel.title
+                );
+
+            const description =
+              new TextInputBuilder()
+                .setCustomId(
+                  "description"
+                )
+                .setLabel("Descrição")
+                .setStyle(
+                  TextInputStyle.Paragraph
+                )
+                .setRequired(true)
+                .setValue(
+                  cfg.ticketPanel.description
+                );
+
+            const color =
+              new TextInputBuilder()
+                .setCustomId("color")
+                .setLabel("Cor HEX")
+                .setStyle(
+                  TextInputStyle.Short
+                )
+                .setRequired(true)
+                .setValue(
+                  cfg.ticketPanel.color
+                );
+
+            const footer =
+              new TextInputBuilder()
+                .setCustomId("footer")
+                .setLabel("Footer")
+                .setStyle(
+                  TextInputStyle.Short
+                )
+                .setRequired(true)
+                .setValue(
+                  cfg.ticketPanel.footer
+                );
+
+            modal.addComponents(
+              new ActionRowBuilder()
+                .addComponents(title),
+
+              new ActionRowBuilder()
+                .addComponents(
+                  description
+                ),
+
+              new ActionRowBuilder()
+                .addComponents(color),
+
+              new ActionRowBuilder()
+                .addComponents(footer)
+            );
+
+            return interaction.showModal(
+              modal
+            );
+          }
+        }
+
+        /* SECURITY */
+
+        if (
+          interaction.commandName ===
+          "security"
+        ) {
+
+          const sub =
+            interaction.options
+              .getSubcommand();
+
+          const value =
+            interaction.options
+              .getBoolean("ativar");
+
+          if (sub === "antiraid")
+            cfg.antiraid = value;
+
+          if (sub === "antispam")
+            cfg.antispam = value;
+
+          if (
+            sub ===
+            "botprotection"
+          )
+            cfg.botProtection = value;
+
+          saveDB();
+
+          return interaction.reply({
+            content:
+              `✅ Configuração atualizada: **${sub}** = ${
+                value
+                  ? "ATIVADO"
+                  : "DESATIVADO"
+              }`,
+            ephemeral: true
+          });
+        }
+
+        /* BLACKLIST */
+
+        if (
+          interaction.commandName ===
+          "blacklist"
+        ) {
+
+          const sub =
+            interaction.options
+              .getSubcommand();
+
+          if (sub === "list") {
+
+            const list =
+              cfg.blacklist.length
+                ? cfg.blacklist
+                    .map(
+                      (id, i) =>
+                        `${i + 1}. <@${id}> — \`${id}\``
+                    )
+                    .join("\n")
+                : "A blacklist está vazia.";
+
+            return interaction.reply({
+              content:
+                `☠️ **Blacklist Permanente**\n\n${list}`,
               ephemeral: true
             });
           }
 
-          await interaction.deferReply({ ephemeral: true });
-          await sendTicketPanel(channel);
+          const user =
+            interaction.options
+              .getUser("usuario");
 
-          await interaction.editReply({
-            content: `✅ Painel de tickets publicado em ${channel}.`
-          });
-          return;
+          if (sub === "add") {
+
+            if (
+              !cfg.blacklist.includes(
+                user.id
+              )
+            ) {
+
+              cfg.blacklist.push(
+                user.id
+              );
+
+              saveDB();
+            }
+
+            try {
+              await guild.members.ban(
+                user.id,
+                {
+                  reason:
+                    "Zenith: blacklist permanente"
+                }
+              );
+            } catch {}
+
+            return interaction.reply({
+              content:
+                `☠️ <@${user.id}> foi adicionado à blacklist permanente.`,
+              ephemeral: true
+            });
+          }
+
+          if (sub === "remove") {
+
+            cfg.blacklist =
+              cfg.blacklist.filter(
+                id =>
+                  id !== user.id
+              );
+
+            saveDB();
+
+            return interaction.reply({
+              content:
+                `✅ <@${user.id}> removido da blacklist.`,
+              ephemeral: true
+            });
+          }
         }
 
-        if (id === "config_security") {
-          await interaction.update({
-            embeds: [configSecurityEmbed(interaction.guild)],
-            components: configSecurityButtons(interaction.guild)
-          });
-          return;
+        /* WHITELIST */
+
+        if (
+          interaction.commandName ===
+          "whitelist"
+        ) {
+
+          const sub =
+            interaction.options
+              .getSubcommand();
+
+          if (sub === "list") {
+
+            const list =
+              cfg.whitelist.length
+                ? cfg.whitelist
+                    .map(
+                      id => `<@${id}>`
+                    )
+                    .join("\n")
+                : "Vazia";
+
+            return interaction.reply({
+              content:
+                `✅ **Whitelist**\n\n${list}`,
+              ephemeral: true
+            });
+          }
+
+          const user =
+            interaction.options
+              .getUser("usuario");
+
+          if (sub === "add") {
+
+            if (
+              !cfg.whitelist.includes(
+                user.id
+              )
+            ) {
+
+              cfg.whitelist.push(
+                user.id
+              );
+
+              saveDB();
+            }
+
+            return interaction.reply({
+              content:
+                `✅ <@${user.id}> adicionado à whitelist.`,
+              ephemeral: true
+            });
+          }
+
+          if (sub === "remove") {
+
+            cfg.whitelist =
+              cfg.whitelist.filter(
+                id =>
+                  id !== user.id
+              );
+
+            saveDB();
+
+            return interaction.reply({
+              content:
+                `✅ <@${user.id}> removido da whitelist.`,
+              ephemeral: true
+            });
+          }
         }
 
-        if (id === "config_security_back") {
-          await interaction.update({
-            embeds: [configEmbed(interaction.guild)],
-            components: configButtons()
-          });
-          return;
-        }
+        /* LOGS */
 
-        const toggleMap = {
-          config_toggle_antiraid: "antiraid",
-          config_toggle_antispam: "antispam",
-          config_toggle_botProtection: "botProtection"
-        };
+        if (
+          interaction.commandName ===
+          "logs"
+        ) {
 
-        if (toggleMap[id]) {
-          const setting = toggleMap[id];
-          config[setting] = !config[setting];
+          cfg.logs =
+            interaction.options
+              .getChannel("canal")
+              .id;
+
           saveDB();
 
-          await interaction.update({
-            embeds: [configSecurityEmbed(interaction.guild)],
-            components: configSecurityButtons(interaction.guild)
+          return interaction.reply({
+            content:
+              "✅ Canal de logs configurado.",
+            ephemeral: true
+          });
+        }
+
+        /* LOCKDOWN */
+
+        if (
+          interaction.commandName ===
+          "lockdown"
+        ) {
+
+          const enabled =
+            interaction.options
+              .getBoolean("ativar");
+
+          cfg.lockdown =
+            enabled;
+
+          saveDB();
+
+          for (
+            const channel
+            of guild.channels.cache.values()
+          ) {
+
+            if (
+              channel.type !==
+                ChannelType.GuildText &&
+              channel.type !==
+                ChannelType.GuildAnnouncement
+            )
+              continue;
+
+            try {
+
+              await channel.permissionOverwrites.edit(
+                guild.roles.everyone,
+                {
+                  SendMessages:
+                    enabled
+                      ? false
+                      : null
+                }
+              );
+
+            } catch {}
+          }
+
+          return interaction.reply({
+            content:
+              enabled
+                ? "🔒 Lockdown ativado."
+                : "🔓 Lockdown desativado.",
+            ephemeral: true
+          });
+        }
+
+        /* BAN */
+
+        if (
+          interaction.commandName ===
+          "ban"
+        ) {
+
+          const user =
+            interaction.options
+              .getUser("usuario");
+
+          const reason =
+            interaction.options
+              .getString("motivo") ||
+            "Sem motivo informado";
+
+          try {
+
+            await guild.members.ban(
+              user.id,
+              { reason }
+            );
+
+            await sendLog(
+              guild,
+              "🔨 BAN",
+              `**Usuário:** <@${user.id}>\n` +
+              `**Por:** <@${interaction.user.id}>\n` +
+              `**Motivo:** ${reason}`,
+              0xED4245
+            );
+
+            return interaction.reply({
+              content:
+                `🔨 <@${user.id}> foi banido.`,
+              ephemeral: true
+            });
+
+          } catch {
+
+            return interaction.reply({
+              content:
+                "❌ Não consegui banir esse usuário.",
+              ephemeral: true
+            });
+          }
+        }
+
+        /* KICK */
+
+        if (
+          interaction.commandName ===
+          "kick"
+        ) {
+
+          const user =
+            interaction.options
+              .getUser("usuario");
+
+          const reason =
+            interaction.options
+              .getString("motivo") ||
+            "Sem motivo informado";
+
+          const member =
+            await guild.members
+              .fetch(user.id)
+              .catch(() => null);
+
+          if (!member) {
+
+            return interaction.reply({
+              content:
+                "❌ Usuário não está no servidor.",
+              ephemeral: true
+            });
+          }
+
+          try {
+
+            await member.kick(
+              reason
+            );
+
+            return interaction.reply({
+              content:
+                `👢 <@${user.id}> foi expulso.`,
+              ephemeral: true
+            });
+
+          } catch {
+
+            return interaction.reply({
+              content:
+                "❌ Não consegui expulsar esse usuário.",
+              ephemeral: true
+            });
+          }
+        }
+
+        /* WARN */
+
+        if (
+          interaction.commandName ===
+          "warn"
+        ) {
+
+          const user =
+            interaction.options
+              .getUser("usuario");
+
+          const reason =
+            interaction.options
+              .getString("motivo") ||
+            "Sem motivo informado";
+
+          if (
+            !cfg.warns[user.id]
+          ) {
+            cfg.warns[user.id] = [];
+          }
+
+          cfg.warns[user.id].push({
+            reason,
+            moderator:
+              interaction.user.id,
+            date:
+              new Date().toISOString()
           });
 
-          await sendLog(
-            interaction.guild,
-            "🛡️ Configuração de segurança alterada",
-            `**Sistema:** ${setting}\n**Novo estado:** ${config[setting] ? "Ativado" : "Desativado"}\n**Responsável:** ${interaction.user.tag}`
-          );
-          return;
+          saveDB();
+
+          return interaction.reply({
+            content:
+              `⚠️ <@${user.id}> recebeu um warn.\n` +
+              `**Motivo:** ${reason}\n` +
+              `**Total:** ${cfg.warns[user.id].length}`,
+            ephemeral: true
+          });
         }
       }
-    }
 
-    // Modais
-    if (interaction.isModalSubmit()) {
+      /* =================================
+         CONFIGURAÇÃO DOS BOTÕES
+      ================================= */
+
       if (
-        interaction.customId === "config_owner_modal" ||
-        interaction.customId === "config_panel_modal"
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_first_owner"
       ) {
-        if (!canConfigure(interaction)) {
-          return safeReply(interaction, {
-            content: "❌ Você não tem permissão para alterar essas configurações.",
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        if (
+          interaction.user.id !==
+          interaction.guild.ownerId
+        ) {
+
+          return interaction.reply({
+            content:
+              "❌ Apenas o dono atual do servidor pode fazer a primeira configuração.",
             ephemeral: true
           });
         }
 
-        const config = guildConfig(interaction.guild.id);
+        cfg.zenithOwner =
+          interaction.user.id;
 
-        if (interaction.customId === "config_owner_modal") {
-          const ownerId = interaction.fields
-            .getTextInputValue("zenith_owner_id")
-            .trim();
-
-          if (!/^\d{17,20}$/.test(ownerId)) {
-            return safeReply(interaction, {
-              content: "❌ O ID informado não parece ser um ID válido do Discord.",
-              ephemeral: true
-            });
-          }
-
-          config.zenithOwner = ownerId;
-          saveDB();
-
-          await safeReply(interaction, {
-            content: `✅ Responsável do Zenith definido para <@${ownerId}>.`,
-            ephemeral: true
-          });
-          return;
+        if (
+          !cfg.whitelist.includes(
+            interaction.user.id
+          )
+        ) {
+          cfg.whitelist.push(
+            interaction.user.id
+          );
         }
 
-        if (interaction.customId === "config_panel_modal") {
-          const title = interaction.fields.getTextInputValue("panel_title").trim();
-          const description = interaction.fields.getTextInputValue("panel_description").trim();
-          const color = interaction.fields.getTextInputValue("panel_color").trim();
-          const footer = interaction.fields.getTextInputValue("panel_footer").trim();
+        saveDB();
 
-          if (!/^#?[0-9a-fA-F]{6}$/.test(color)) {
-            return safeReply(interaction, {
-              content: "❌ Cor inválida. Use um hexadecimal como `#5865F2`.",
-              ephemeral: true
-            });
-          }
+        return interaction.update({
+          embeds: [
+            configEmbed(
+              interaction.guild
+            )
+          ],
+          components:
+            configButtons()
+        });
+      }
 
-          config.ticketPanel = {
-            ...config.ticketPanel,
-            title,
-            description,
-            color: color.startsWith("#") ? color.toUpperCase() : `#${color.toUpperCase()}`,
-            footer
-          };
+      /* DONO */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_owner"
+      ) {
+
+        const modal =
+          new ModalBuilder()
+            .setCustomId(
+              "config_owner_modal"
+            )
+            .setTitle(
+              "Definir dono do Zenith"
+            );
+
+        const input =
+          new TextInputBuilder()
+            .setCustomId("owner_id")
+            .setLabel(
+              "ID do usuário"
+            )
+            .setPlaceholder(
+              "Ex: 123456789012345678"
+            )
+            .setStyle(
+              TextInputStyle.Short
+            )
+            .setRequired(true);
+
+        modal.addComponents(
+          new ActionRowBuilder()
+            .addComponents(input)
+        );
+
+        return interaction.showModal(
+          modal
+        );
+      }
+
+      /* CATEGORIA */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_category"
+      ) {
+
+        return interaction.reply({
+          content:
+            "🎫 **Selecione a categoria dos tickets:**",
+          components: [
+
+            new ActionRowBuilder()
+              .addComponents(
+
+                new ChannelSelectMenuBuilder()
+                  .setCustomId(
+                    "config_category_select"
+                  )
+                  .setPlaceholder(
+                    "Escolher categoria"
+                  )
+                  .setChannelTypes(
+                    ChannelType.GuildCategory
+                  )
+                  .setMinValues(1)
+                  .setMaxValues(1)
+
+              )
+
+          ],
+          ephemeral: true
+        });
+      }
+
+      /* LOGS */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_logs"
+      ) {
+
+        return interaction.reply({
+          content:
+            "📋 **Selecione o canal de logs:**",
+          components: [
+
+            new ActionRowBuilder()
+              .addComponents(
+
+                new ChannelSelectMenuBuilder()
+                  .setCustomId(
+                    "config_logs_select"
+                  )
+                  .setPlaceholder(
+                    "Escolher canal de logs"
+                  )
+                  .setChannelTypes(
+                    ChannelType.GuildText
+                  )
+                  .setMinValues(1)
+                  .setMaxValues(1)
+
+              )
+
+          ],
+          ephemeral: true
+        });
+      }
+
+      /* CANAL DO PAINEL */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_panel"
+      ) {
+
+        return interaction.reply({
+          content:
+            "🎟️ **Selecione o canal onde o painel de tickets será enviado:**",
+          components: [
+
+            new ActionRowBuilder()
+              .addComponents(
+
+                new ChannelSelectMenuBuilder()
+                  .setCustomId(
+                    "config_panel_select"
+                  )
+                  .setPlaceholder(
+                    "Escolher canal do painel"
+                  )
+                  .setChannelTypes(
+                    ChannelType.GuildText
+                  )
+                  .setMinValues(1)
+                  .setMaxValues(1)
+
+              )
+
+          ],
+          ephemeral: true
+        });
+      }
+
+      /* =================================
+   CANAL DE AVALIAÇÕES
+================================= */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_feedback"
+      ) {
+
+        return interaction.reply({
+          content:
+            "⭐ **Selecione o canal onde as avaliações serão enviadas:**",
+
+          components: [
+
+            new ActionRowBuilder()
+              .addComponents(
+
+                new ChannelSelectMenuBuilder()
+                  .setCustomId(
+                    "config_feedback_select"
+                  )
+                  .setPlaceholder(
+                    "Escolher canal de avaliações"
+                  )
+                  .setChannelTypes(
+                    ChannelType.GuildText
+                  )
+                  .setMinValues(1)
+                  .setMaxValues(1)
+
+              )
+
+          ],
+
+          ephemeral: true
+        });
+      }
+
+      /* SEGURANÇA */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_security"
+      ) {
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        const row1 =
+          new ActionRowBuilder()
+            .addComponents(
+
+              new ButtonBuilder()
+                .setCustomId(
+                  "toggle_antiraid"
+                )
+                .setLabel(
+                  `Anti-Raid: ${
+                    cfg.antiraid
+                      ? "ON"
+                      : "OFF"
+                  }`
+                )
+                .setStyle(
+                  cfg.antiraid
+                    ? ButtonStyle.Success
+                    : ButtonStyle.Danger
+                ),
+
+              new ButtonBuilder()
+                .setCustomId(
+                  "toggle_antispam"
+                )
+                .setLabel(
+                  `Anti-Spam: ${
+                    cfg.antispam
+                      ? "ON"
+                      : "OFF"
+                  }`
+                )
+                .setStyle(
+                  cfg.antispam
+                    ? ButtonStyle.Success
+                    : ButtonStyle.Danger
+                ),
+
+              new ButtonBuilder()
+                .setCustomId(
+                  "toggle_antibot"
+                )
+                .setLabel(
+                  `Anti-Bot: ${
+                    cfg.botProtection
+                      ? "ON"
+                      : "OFF"
+                  }`
+                )
+                .setStyle(
+                  cfg.botProtection
+                    ? ButtonStyle.Success
+                    : ButtonStyle.Danger
+                )
+
+            );
+
+        return interaction.reply({
+          content:
+            "🛡️ **Configuração de segurança**",
+          components: [row1],
+          ephemeral: true
+        });
+      }
+
+      /* ATUALIZAR */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "config_refresh"
+      ) {
+
+        return interaction.update({
+          embeds: [
+            configEmbed(
+              interaction.guild
+            )
+          ],
+          components:
+            configButtons()
+        });
+      }
+
+      /* TOGGLES */
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "toggle_antiraid"
+      ) {
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        cfg.antiraid =
+          !cfg.antiraid;
+
+        saveDB();
+
+        return interaction.update({
+          content:
+            `🛡️ Anti-Raid agora está **${
+              cfg.antiraid
+                ? "ATIVADO"
+                : "DESATIVADO"
+            }**.`,
+          components: []
+        });
+      }
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "toggle_antispam"
+      ) {
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        cfg.antispam =
+          !cfg.antispam;
+
+        saveDB();
+
+        return interaction.update({
+          content:
+            `💬 Anti-Spam agora está **${
+              cfg.antispam
+                ? "ATIVADO"
+                : "DESATIVADO"
+            }**.`,
+          components: []
+        });
+      }
+
+      if (
+        interaction.isButton() &&
+        interaction.customId ===
+          "toggle_antibot"
+      ) {
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        cfg.botProtection =
+          !cfg.botProtection;
+
+        saveDB();
+
+        return interaction.update({
+          content:
+            `🤖 Anti-Bot agora está **${
+              cfg.botProtection
+                ? "ATIVADO"
+                : "DESATIVADO"
+            }**.`,
+          components: []
+        });
+      }
+
+      /* =================================
+         SELECT CATEGORIA
+      ================================= */
+
+      if (
+        interaction.isChannelSelectMenu()
+      ) {
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        const channel =
+          interaction.channels.first();
+
+        if (
+          interaction.customId ===
+          "config_category_select"
+        ) {
+
+          cfg.ticketCategory =
+            channel.id;
 
           saveDB();
 
-          await safeReply(interaction, {
-            content: "✅ Painel personalizado e configurações salvas. Publique o painel novamente para mostrar as alterações.",
-            ephemeral: true
+          return interaction.update({
+            content:
+              `✅ Categoria dos tickets definida: ${channel}`,
+            components: []
           });
-          return;
+        }
+
+        if (
+          interaction.customId ===
+          "config_logs_select"
+        ) {
+
+          cfg.logs =
+            channel.id;
+
+          saveDB();
+
+          return interaction.update({
+            content:
+              `✅ Canal de logs definido: ${channel}`,
+            components: []
+          });
+        }
+
+        if (
+          interaction.customId ===
+          "config_panel_select"
+        ) {
+
+          cfg.ticketPanelChannel =
+            channel.id;
+
+          saveDB();
+
+          return interaction.update({
+            content:
+              `✅ Canal do painel definido: ${channel}`,
+            components: []
+          });
         }
       }
-    }
-  } catch (error) {
-    console.error("[ZENITH] Erro ao processar interação:", error);
 
-    try {
-      await safeReply(interaction, {
-        content: "❌ Ocorreu um erro ao processar essa interação. Confira as permissões do bot e o console.",
-        ephemeral: true
-      });
-    } catch (replyError) {
-      console.error("[ZENITH] Não foi possível responder à interação:", replyError);
+    } catch (error) {
+
+      console.error(
+        "[INTERACTION ERROR]",
+        error
+      );
+
+      if (
+        !interaction.replied &&
+        !interaction.deferred
+      ) {
+
+        try {
+
+          await interaction.reply({
+            content:
+              "❌ Ocorreu um erro ao executar esta ação.",
+            ephemeral: true
+          });
+
+        } catch {}
+      }
     }
   }
-});
+);
 
-/* ==========================================
-   ZENITH NORMAL — INICIALIZAÇÃO FINAL
-   ========================================== */
+/* =========================================
+   MODAIS
+========================================= */
 
-let server = null;
+client.on(
+  "interactionCreate",
+  async interaction => {
 
-function startHealthServer() {
-  if (server) return server;
-
-  server = http.createServer((req, res) => {
-    if (req.url === "/health" || req.url === "/") {
-      const body = JSON.stringify({
-        status: "online",
-        bot: client.user?.tag || "iniciando",
-        uptime: Math.floor(process.uptime()),
-        timestamp: new Date().toISOString()
-      });
-
-      res.writeHead(200, {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store"
-      });
-
-      res.end(body);
+    if (
+      !interaction.isModalSubmit()
+    )
       return;
-    }
 
-    res.writeHead(404, {
-      "Content-Type": "application/json; charset=utf-8"
-    });
-
-    res.end(JSON.stringify({
-      status: "not_found"
-    }));
-  });
-
-  server.on("error", (error) => {
-    console.error("[ZENITH] Erro no servidor HTTP:", error);
-  });
-
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`[WEB] Servidor HTTP ativo na porta ${PORT}`);
-  });
-
-  return server;
-}
-
-client.once("ready", async () => {
-  console.log("======================================");
-  console.log(`🤖 Zenith conectado como ${client.user.tag}`);
-  console.log(`🆔 ID: ${client.user.id}`);
-  console.log(`🌐 Servidores: ${client.guilds.cache.size}`);
-  console.log(`📦 Comandos carregados: ${client.commands.size}`);
-  console.log("======================================");
-
-  client.user.setPresence({
-    activities: [
-      {
-        name: "Central de Atendimento",
-        type: 3
-      }
-    ],
-    status: "online"
-  });
-
-  for (const guild of client.guilds.cache.values()) {
     try {
-      guildConfig(guild.id);
+
+      if (
+        interaction.customId ===
+        "config_owner_modal"
+      ) {
+
+        if (
+          interaction.user.id !==
+          interaction.guild.ownerId
+        ) {
+
+          return interaction.reply({
+            content:
+              "❌ Apenas o dono atual do servidor pode alterar o proprietário do Zenith.",
+            ephemeral: true
+          });
+        }
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        const id =
+          interaction.fields
+            .getTextInputValue(
+              "owner_id"
+            )
+            .trim();
+
+        if (!/^\d{17,20}$/.test(id)) {
+
+          return interaction.reply({
+            content:
+              "❌ ID de usuário inválido.",
+            ephemeral: true
+          });
+        }
+
+        cfg.zenithOwner =
+          id;
+
+        if (
+          !cfg.whitelist.includes(id)
+        ) {
+          cfg.whitelist.push(id);
+        }
+
+        saveDB();
+
+        return interaction.reply({
+          content:
+            `👑 O novo proprietário do Zenith é <@${id}>.`,
+          ephemeral: true
+        });
+      }
+
+      if (
+        interaction.customId ===
+        "ticket_edit_modal"
+      ) {
+
+        if (
+          !isZenithOwner(
+            interaction
+          )
+        ) {
+
+          return interaction.reply({
+            content:
+              "❌ Você não é o dono do Zenith.",
+            ephemeral: true
+          });
+        }
+
+        const cfg =
+          guildConfig(
+            interaction.guild
+          );
+
+        cfg.ticketPanel.title =
+          interaction.fields
+            .getTextInputValue(
+              "title"
+            );
+
+        cfg.ticketPanel.description =
+          interaction.fields
+            .getTextInputValue(
+              "description"
+            );
+
+        cfg.ticketPanel.color =
+          interaction.fields
+            .getTextInputValue(
+              "color"
+            );
+
+        cfg.ticketPanel.footer =
+          interaction.fields
+            .getTextInputValue(
+              "footer"
+            );
+
+        saveDB();
+
+        return interaction.reply({
+          content:
+            "✅ Painel de tickets atualizado.",
+          ephemeral: true
+        });
+      }
+
     } catch (error) {
+
       console.error(
-        `[ZENITH] Erro ao carregar configurações de ${guild.id}:`,
+        "[MODAL ERROR]",
         error
       );
     }
   }
+);
+/* =========================================
+   ATUALIZAÇÃO AUTOMÁTICA DO /INFO
+========================================= */
 
-  saveDB();
+client.on(
+  "guildMemberAdd",
+  async member => {
+    await updateServerInfo(member.guild);
+  }
+);
 
-  try {
-    if (typeof updateServerInfo === "function") {
-      for (const guild of client.guilds.cache.values()) {
-        try {
-          await updateServerInfo(guild);
-        } catch (error) {
-          console.error(
-            `[ZENITH] Não foi possível atualizar informações de ${guild.name}:`,
-            error.message
-          );
-        }
+client.on(
+  "guildMemberRemove",
+  async member => {
+    await updateServerInfo(member.guild);
+  }
+);
+
+client.on(
+  "channelCreate",
+  async channel => {
+
+    if (!channel.guild)
+      return;
+
+    await updateServerInfo(
+      channel.guild
+    );
+  }
+);
+
+client.on(
+  "channelDelete",
+  async channel => {
+
+    if (!channel.guild)
+      return;
+
+    await updateServerInfo(
+      channel.guild
+    );
+  }
+);
+
+client.on(
+  "roleCreate",
+  async role => {
+    await updateServerInfo(
+      role.guild
+    );
+  }
+);
+
+client.on(
+  "roleDelete",
+  async role => {
+    await updateServerInfo(
+      role.guild
+    );
+  }
+);
+
+client.on(
+  "guildMemberUpdate",
+  async (oldMember, newMember) => {
+
+    if (
+      oldMember.premiumSinceTimestamp !==
+      newMember.premiumSinceTimestamp
+    ) {
+
+      await updateServerInfo(
+        newMember.guild
+      );
+    }
+  }
+);
+
+/* =========================================
+   READY
+========================================= */
+
+client.once(
+  "ready",
+  async () => {
+
+    console.log(
+      "======================================"
+    );
+
+    console.log(
+      `ZENITH ONLINE: ${client.user.tag}`
+    );
+
+    console.log(
+      `SERVIDORES: ${client.guilds.cache.size}`
+    );
+
+    console.log(
+      "======================================"
+    );
+
+    for (
+      const guild
+      of client.guilds.cache.values()
+    ) {
+
+      try {
+
+        guildConfig(guild);
+
+        await guild.commands.set(
+          commands
+        );
+
+        console.log(
+          `[COMMANDS] ${commands.length} registrados em ${guild.name}`
+        );
+
+      } catch (error) {
+
+        console.error(
+          `[COMMANDS ERROR] ${guild.name}`,
+          error.message
+        );
       }
     }
-  } catch (error) {
-    console.error("[ZENITH] Erro ao atualizar informações:", error);
+
+    console.log(
+      "======================================"
+    );
+
+    console.log(
+      "ZENITH TOTALMENTE INICIADO"
+    );
+
+    console.log(
+      "======================================"
+    );
   }
+);
 
-  console.log("[ZENITH] Inicialização concluída.");
-});
+/* =========================================
+   NOVO SERVIDOR
+========================================= */
 
-client.on("guildCreate", async (guild) => {
-  console.log(`[ZENITH] Adicionado ao servidor: ${guild.name} (${guild.id})`);
+client.on(
+  "guildCreate",
+  async guild => {
 
-  guildConfig(guild.id);
-  saveDB();
+    try {
 
-  try {
-    if (typeof updateServerInfo === "function") {
-      await updateServerInfo(guild);
+      guildConfig(guild);
+
+      await guild.commands.set(
+        commands
+      );
+
+    } catch (error) {
+
+      console.error(
+        "[GUILD ERROR]",
+        error
+      );
     }
-  } catch (error) {
-    console.error("[ZENITH] Erro ao atualizar novo servidor:", error);
   }
-});
+);
 
-client.on("guildDelete", (guild) => {
-  console.log(`[ZENITH] Removido do servidor: ${guild.name} (${guild.id})`);
-});
+/* =========================================
+   SERVIDOR WEB PARA RENDER
+========================================= */
 
-client.on("warn", (warning) => {
-  console.warn("[DISCORD WARN]", warning);
-});
+const PORT =
+  process.env.PORT || 3000;
 
-client.on("error", (error) => {
-  console.error("[DISCORD ERROR]", error);
-});
+http.createServer(
+  (req, res) => {
 
-process.on("unhandledRejection", (reason) => {
-  console.error("[ZENITH] Promise rejeitada:", reason);
-});
+    res.writeHead(
+      200,
+      {
+        "Content-Type":
+          "text/plain; charset=utf-8"
+      }
+    );
 
-process.on("uncaughtException", (error) => {
-  console.error("[ZENITH] Exceção não capturada:", error);
-});
-
-process.on("SIGTERM", () => {
-  console.log("[ZENITH] Encerrando por SIGTERM...");
-
-  if (server) {
-    server.close();
+    res.end(
+      "Zenith Online"
+    );
   }
+).listen(
+  PORT,
+  "0.0.0.0",
+  () => {
 
-  client.destroy();
-  process.exit(0);
-});
-
-process.on("SIGINT", () => {
-  console.log("[ZENITH] Encerrando por SIGINT...");
-
-  if (server) {
-    server.close();
+    console.log(
+      `[WEB] Porta ${PORT} ativa`
+    );
   }
+);
 
-  client.destroy();
-  process.exit(0);
-});
+/* =========================================
+   ERROS
+========================================= */
 
-startHealthServer();
+client.on(
+  "error",
+  error => {
+    console.error(
+      "[DISCORD ERROR]",
+      error
+    );
+  }
+);
 
-if (!TOKEN) {
+process.on(
+  "unhandledRejection",
+  error => {
+    console.error(
+      "[UNHANDLED]",
+      error
+    );
+  }
+);
+
+process.on(
+  "uncaughtException",
+  error => {
+    console.error(
+      "[UNCAUGHT]",
+      error
+    );
+  }
+);
+
+/* =========================================
+   LOGIN
+========================================= */
+
+if (!process.env.DISCORD_TOKEN) {
+
   console.error(
-    "[ZENITH] ERRO: configure DISCORD_TOKEN ou TOKEN nas variáveis de ambiente."
+    "❌ DISCORD_TOKEN não encontrado."
   );
-} else {
-  client.login(TOKEN).catch((error) => {
-    console.error("[ZENITH] Falha ao conectar ao Discord:", error.message);
-    process.exitCode = 1;
-  });
+
+  process.exit(1);
 }
+
+client.login(
+  process.env.DISCORD_TOKEN
+)
+.then(() => {
+
+  console.log(
+    "🔑 Login enviado ao Discord."
+  );
+
+})
+.catch(error => {
+
+  console.error(
+    "❌ ERRO AO CONECTAR:",
+    error
+  );
+
+});
